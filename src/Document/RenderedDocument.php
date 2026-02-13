@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Wallee\PluginCore\Document;
+
+/**
+ * Domain entity representing a rendered document (PDF).
+ */
+readonly class RenderedDocument
+{
+    /**
+     * @param string $title The title of the document.
+     * @param string $mimeType The mime type of the document (e.g., application/pdf).
+     * @param string $data The binary content of the document.
+     */
+    public function __construct(
+        public string $title,
+        public string $mimeType,
+        public string $data
+    ) {}
+}

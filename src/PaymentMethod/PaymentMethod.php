@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Wallee\PluginCore\PaymentMethod;
+
+/**
+ * Domain entity representing a Payment Method.
+ *
+ * This class maps the external SDK configuration to a domain-specific
+ * representation that is easier to use within the application.
+ */
+readonly class PaymentMethod
+{
+    /**
+     * @param int $id The ID of the payment method configuration.
+     * @param int $spaceId The ID of the space this method belongs to.
+     * @param string $name The resolved name of the payment method.
+     * @param string $state The state of the payment method (e.g., Active, Inactive).
+     * @param int $sortOrder The sort order for display purposes.
+     * @param string|null $imageUrl The URL of the payment method image, if available.
+     * @param string|null $description The description of the payment method, if available.
+     */
+    public function __construct(
+        public int $id,
+        public int $spaceId,
+        public string $state,
+        public string $name,
+        public array $title,
+        public ?string $description,
+        public array $descriptionMap,
+        public int $sortOrder,
+        public ?string $imageUrl,
+    ) {}
+}

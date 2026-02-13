@@ -1,0 +1,122 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Wallee\PluginCore\Tests\Webhook;
+
+use PHPUnit\Framework\TestCase;
+use Wallee\PluginCore\Http\Request;
+use Wallee\PluginCore\Webhook\DefaultStateFetcher;
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Settings\Settings;
+use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
+use Wallee\PluginCore\Transaction\Transaction;
+use Wallee\PluginCore\Transaction\State;
+use Wallee\Sdk\Service\WebhookEncryptionService;
+
+class DefaultStateFetcherTest extends TestCase
+{
+    private SdkProvider $sdkProviderMock;
+    private Settings $settingsMock;
+    private TransactionGatewayInterface $gatewayMock;
+    private DefaultStateFetcher $fetcher;
+    private WebhookEncryptionService $encryptionServiceMock;
+
+    protected function setUp(): void
+    {
+        $this->sdkProviderMock = $this->createMock(SdkProvider::class);
+        $this->settingsMock = $this->createMock(Settings::class);
+        $this->gatewayMock = $this->createMock(TransactionGatewayInterface::class);
+
+        $this->encryptionServiceMock = $this->createMock(WebhookEncryptionService::class);
+
+        $this->sdkProviderMock->method('getService')
+            ->willReturnMap([
+                [WebhookEncryptionService::class, $this->encryptionServiceMock],
+            ]);
+
+        $this->settingsMock->method('getSpaceId')->willReturn(1234);
+
+        $this->fetcher = new DefaultStateFetcher(
+            $this->sdkProviderMock,
+            $this->settingsMock,
+            $this->gatewayMock
+        );
+    }
+
+    public function testFetchStateReturnsStateFromSignedPayloadWhenSignatureIsValid(): void
+    {
+        // --- Arrange ---
+        $request = $this->createRequest(
+            ['x-signature' => 'a-valid-signature-header'],
+            ['state' => 'COMPLETED'],
+            'raw-body-content'
+        );
+
+        $this->encryptionServiceMock
+            ->expects($this->once())
+            ->method('isContentValid')
+            ->with('a-valid-signature-header', 'raw-body-content')
+            ->willReturn(true);
+
+        // --- Act ---
+        $state = $this->fetcher->fetchState($request, 567);
+
+        // --- Assert ---
+        $this->assertSame('COMPLETED', $state);
+    }
+
+    public function testFetchStateThrowsExceptionWhenSignatureIsInvalid(): void
+    {
+        // --- Assert ---
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Invalid webhook signature.');
+
+        // --- Arrange ---
+        $request = $this->createRequest(
+            ['x-signature' => 'an-invalid-signature-header'],
+            [],
+            'raw-body-content'
+        );
+
+        $this->encryptionServiceMock->method('isContentValid')->willReturn(false);
+
+        // --- Act ---
+        $this->fetcher->fetchState($request, 567);
+    }
+
+    public function testFetchStateCallsGatewayWhenSignatureIsMissing(): void
+    {
+        // --- Arrange ---
+        $request = $this->createRequest([], [], ''); // No signature
+
+        $mockTransaction = new Transaction();
+        $mockTransaction->state = State::PENDING;
+
+        // Configure the gateway mock
+        $this->gatewayMock
+            ->expects($this->once())
+            ->method('get')
+            ->with(1234, 567)
+            ->willReturn($mockTransaction);
+
+        // --- Act ---
+        $state = $this->fetcher->fetchState($request, 567);
+
+        // --- Assert ---
+        $this->assertSame('PENDING', $state);
+    }
+
+    /**
+     * Helper method to create Request instances for tests using reflection.
+     */
+    private function createRequest(array $headers, array $body, string $rawBody): Request
+    {
+        $reflection = new \ReflectionClass(Request::class);
+        $constructor = $reflection->getConstructor();
+        $constructor->setAccessible(true);
+        $request = $reflection->newInstanceWithoutConstructor();
+        $constructor->invoke($request, $headers, $body, $rawBody);
+        return $request;
+    }
+}

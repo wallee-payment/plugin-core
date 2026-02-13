@@ -1,0 +1,30 @@
+{
+    "name": "wallee/plugin-core",
+    "description": "Core functionality for the Wallee plugins.",
+    "type": "library",
+    "license": "Apache-2.0",
+    "autoload": {
+        "psr-4": {
+            "Wallee\\PluginCore\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Wallee\\PluginCore\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.2",
+        "wallee/sdk": "^4.8"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.3",
+        "phpstan/phpstan": "^2.1",
+        "friendsofphp/php-cs-fixer": "^3.88"
+    },
+    "scripts": {
+        "test": "./vendor/bin/phpunit",
+        "analyse": "./vendor/bin/phpstan analyse",
+        "style": "./vendor/bin/php-cs-fixer fix"
+    }
+}
