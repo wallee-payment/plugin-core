@@ -2,8 +2,8 @@
 
 namespace Wallee\PluginCore\Tests;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class DataProviderTest extends TestCase
 {

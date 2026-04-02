@@ -9,8 +9,7 @@ use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
-use Wallee\PluginCore\Webhook\Exception\CommandException;
-use Wallee\Sdk\Service\WebhookEncryptionService;
+use Wallee\Sdk\Service\WebhookEncryptionKeysService;
 
 /**
  * Default implementation for fetching the remote state of an entity.
@@ -40,19 +39,19 @@ class DefaultStateFetcher implements StateFetcherInterface
         $signatureHeader = $request->getHeader('x-signature');
 
         if ($signatureHeader) {
-            /** @var WebhookEncryptionService $encryptionService */
-            $encryptionService = $this->sdkProvider->getService(WebhookEncryptionService::class);
+            /** @var WebhookEncryptionKeysService $encryptionService */
+            $encryptionService = $this->sdkProvider->getService(WebhookEncryptionKeysService::class);
 
             // New way, signed state from webhook.
             if ($encryptionService->isContentValid($signatureHeader, $request->getRawBody())) {
                 $body = $request->body;
                 if (empty($body['state'])) {
-                    throw new CommandException("Webhook payload is signed but missing 'state' field.");
+                    throw new \Exception("Webhook payload is signed but missing 'state' field.");
                 }
                 return (string) $body['state'];
             }
 
-            throw new CommandException("Invalid webhook signature.");
+            throw new \Exception("Invalid webhook signature.");
         }
 
         // Legacy way, fetch state from Portal API (extra request(s)).
@@ -73,6 +72,6 @@ class DefaultStateFetcher implements StateFetcherInterface
             }
         }
 
-        throw new CommandException("Failed to fetch state for entity $entityId after $maxRetries retries.");
+        throw new \Exception("Failed to fetch state for entity $entityId after $maxRetries retries.");
     }
 }

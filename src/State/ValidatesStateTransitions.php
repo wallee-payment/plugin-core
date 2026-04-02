@@ -7,6 +7,13 @@ namespace Wallee\PluginCore\State;
 trait ValidatesStateTransitions
 {
     /**
+     * Defines the valid state transitions.
+     *
+     * @return array<string, array<int|string, string|list<string>>>
+     */
+    abstract public static function getTransitionMap(): array;
+
+    /**
      * Checks if a transition from the current state to a new state is valid.
      */
     public function canTransitionTo(self $nextState): bool
@@ -30,12 +37,4 @@ trait ValidatesStateTransitions
         $allowedTransitions = $transitions[$this->value] ?? [];
         return in_array($nextState->value, $allowedTransitions, true);
     }
-    /**
-     * Defines the valid state transitions.
-     * The key is the 'from' state, and the value is an array of valid 'to' states.
-     * Example: [State::PENDING->value => [State::CONFIRMED->value, State::FAILED->value]]
-     *
-     * @return array<string, mixed>
-     */
-    abstract public static function getTransitionMap(): array;
 }

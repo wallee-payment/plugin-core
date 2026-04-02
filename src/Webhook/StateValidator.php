@@ -5,41 +5,72 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Webhook;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
-use Wallee\PluginCore\Webhook\Enum\WebhookListener as WebhookListenerEnum;
+use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 
 /**
- * Validates if a webhook 'state' is valid for a given listener.
+ * Validates and calculates state transitions for webhook entities.
+ *
+ * This validator uses business-specific Enums to determine if an incoming state
+ * transition is logically valid, stale, or part of a sequence that requires
+ * executing intermediate steps.
  */
 class StateValidator
 {
     /**
-     * Calculates the sequence of states needed to transition from the last local
-     * state to a new remote state.
+     * Determines if a raw string state is recognized by the listener's domain model.
      *
-     * Webhooks may arrive out of order or be missed. This method identifies if a
-     * "leap" has occurred (e.g. from PENDING straight to PAID) and returns the
-     * missing intermediate states (e.g. [AUTHORIZED, PAID]) so that the processor
-     * can execute each step's business logic in the correct order.
-     *
-     * @param WebhookListenerEnum $listener The listener type.
-     * @param string|null $lastProcessedState The state currently persisted in the shop.
-     * @param string $remoteState The new state reported by the portal.
-     * @return string[]|null Array of states to process, empty if already at target, or null if invalid transition.
+     * @param WebhookListener $listener The entity type (e.g. Transaction, Refund).
+     * @param string $state The state string delivered by the webhook.
+     * @return bool True if the state is valid for the associated business entity.
      */
-    public function getTransitionPath(WebhookListenerEnum $listener, ?string $lastProcessedState, string $remoteState): ?array
+    public function isValid(WebhookListener $listener, string $state): bool
     {
-        // Current State Match: No transition needed.
+        $enumClass = $listener->getStateEnumClass();
+
+        // Generic Listener Handling
+        // If no specific state enum is defined, we cannot perform strict validation.
+        if ($enumClass === null) {
+            return true;
+        }
+
+        // Domain Enum Validation
+        // We verify that the string matches one of the backed enum cases in our domain model.
+        if (enum_exists($enumClass) && method_exists($enumClass, 'tryFrom')) {
+            return $enumClass::tryFrom($state) !== null;
+        }
+
+        return false;
+    }
+
+    /**
+     * Calculates the path of states that must be processed to reach the remote state.
+     *
+     * This method handles:
+     * 1. Stale webhooks: Returns null if the remote state is logically older than local.
+     * 2. Duplicate webhooks: Returns an empty array if states match.
+     * 3. Skipped states: Returns a list of intermediate states if a sequence is defined
+     *    (e.g. PENDING -> [AUTHORIZED, CAPTURED] -> FULFILLED).
+     *
+     * @param WebhookListener $listener The business entity context.
+     * @param string|null $lastProcessedState The state currently persisted in the local system.
+     * @param string $remoteState The new state reported by the gateway.
+     * @return list<string>|null List of states to process, or null if the transition is invalid/stale.
+     */
+    public function getTransitionPath(WebhookListener $listener, ?string $lastProcessedState, string $remoteState): ?array
+    {
+        // Idempotency Check
         if ($lastProcessedState === $remoteState) {
             return [];
         }
 
         $enumClass = $listener->getStateEnumClass();
-        // If the entity has no complex state machine, we just accept the latest state.
+        // If the enum doesn't implement transition logic, we treat any new state as a single-step transition.
         if ($enumClass === null || !in_array(ValidatesStateTransitions::class, class_uses($enumClass), true)) {
             return [$remoteState];
         }
 
-        // Initial State: Starting a new lifecycle.
+        // Initial State Validation
+        // If we have no local record, we only accept states explicitly marked as 'initial' in the enum map.
         if ($lastProcessedState === null) {
             $map = $enumClass::getTransitionMap();
             $initialStates = $map['initial'] ?? [];
@@ -52,14 +83,15 @@ class StateValidator
             return null;
         }
 
-        // Direct Transition: Standard expected flow.
+        // Direct Transition Validation
         if ($localStateCase->canTransitionTo($remoteStateCase)) {
             return [$remoteState];
         }
 
-        // Sequence/Gap Logic: Handling missed webhooks.
-        // If the states are defined in a linear sequence, we find the slice between
-        // our current position and the target.
+        // Sequence Path Calculation
+        // Some webhooks might be skipped by the sender (e.g. going directly to FULFILLED).
+        // We use the 'sequence' map to find all steps between the current and the target state
+        // to ensure all business logic (invoices, emails) for intermediate steps is triggered.
         $map = $enumClass::getTransitionMap();
         $sequence = $map['sequence'] ?? [];
 
@@ -67,41 +99,14 @@ class StateValidator
             $previousIndex = array_search($lastProcessedState, $sequence, true);
             $currentIndex = array_search($remoteState, $sequence, true);
 
-            // Only allow "forward" jumps in the sequence.
             if ($previousIndex !== false && $currentIndex !== false && $currentIndex > $previousIndex) {
+                // Returns all states in the sequence after the current one, up to and including the target.
                 return array_slice($sequence, $previousIndex + 1, $currentIndex - $previousIndex);
             }
         }
 
-        // Transition is either impossible (e.g. backward) or not defined.
+        // Stale or Invalid Transition
+        // If we reach here, the remote state is either already passed or not reachable from the current state.
         return null;
-    }
-
-    /**
-     * Validates if a raw string state is a recognized member of the listener's state machine.
-     *
-     * This protects the system from processing invalid or experimental states
-     * that might be introduced in the portal before the plugin is updated.
-     *
-     * @param WebhookListenerEnum $listener
-     * @param string $state
-     * @return bool
-     */
-    public function isValid(WebhookListenerEnum $listener, string $state): bool
-    {
-        $enumClass = $listener->getStateEnumClass();
-
-        // If the listener has no specific state enum, we cannot validate.
-        if ($enumClass === null) {
-            return true;
-        }
-
-        // We use backed enums (string-based) to ensure type safety when
-        // comparing against external API payloads.
-        if (enum_exists($enumClass) && method_exists($enumClass, 'tryFrom')) {
-            return $enumClass::tryFrom($state) !== null;
-        }
-
-        return false;
     }
 }

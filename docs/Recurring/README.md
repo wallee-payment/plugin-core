@@ -6,16 +6,31 @@ This is commonly used for subscription renewals or unscheduled subsequent charge
 
 ### Core Concepts
 
-**1. Process Without User Interaction**
-The recurring payment process triggers a charge attempt on a previously successful transaction. It uses the payment information linked to that transaction.
+**1. Tokenization at Checkout (Prerequisite)**
+The original transaction **must** be created with `tokenizationMode = FORCE_CREATION`. This tells the API to automatically generate a token with the customer's stored payment credentials when the payment completes. Without this, there is no token to charge against.
 
-**2. The Recurring Gateway**
+**2. Process via Token**
+The recurring payment process creates a new transaction linked to the existing token, then charges it using `processWithToken`. This leverages the stored payment credentials from the token.
+
+**3. The Recurring Gateway**
 The logic is encapsulated in the `RecurringTransactionGatewayInterface`. This interface exposes a specific method for processing recurring charges: `processRecurringPayment`.
 
-**3. Automatic Token Creation**
-If the original transaction does not have a saved token, the service attempts to create one automatically before processing the recurring payment. This ensures that subsequent charges can still be performed even if the initial payment wasn't tokenized explicitly.
+> [!IMPORTANT]
+> Recurring payments will **fail** if the original transaction was not created with tokenization enabled. The error message will indicate that no token exists.
 
 ### Integration Guide
+
+#### Step 0: Enable Tokenization at Checkout
+
+When creating the original transaction, set `tokenizationMode`:
+
+```php
+use Wallee\PluginCore\Token\TokenizationMode as TokenizationModeEnum;
+
+$context = new TransactionContext();
+// ... set other fields ...
+$context->tokenizationMode = TokenizationModeEnum::FORCE_CREATION;
+```
 
 #### Step 1: Configure the Service
 
@@ -25,8 +40,8 @@ If the original transaction does not have a saved token, the service attempts to
  use Wallee\PluginCore\Transaction\RecurringTransactionService;
  use Wallee\PluginCore\Transaction\TransactionService;
  use Wallee\PluginCore\Token\TokenService;
- use Wallee\PluginCore\Sdk\SdkV1\RecurringTransactionGateway;
- use Wallee\PluginCore\Sdk\SdkV1\TokenGateway;
+ use Wallee\PluginCore\Sdk\SdkV2\RecurringTransactionGateway;
+ use Wallee\PluginCore\Sdk\SdkV2\TokenGateway;
  
  // 1. Setup Gateways
  $recurringGateway = new RecurringTransactionGateway($sdkProvider, $logger);
@@ -68,20 +83,19 @@ sequenceDiagram
     participant WalleeAPI
 
     Scheduler->>PluginCore: processRecurringPayment(spaceId, originalTransactionId)
-    PluginCore->>WalleeAPI: readTransaction(originalId)
-    WalleeAPI-->>PluginCore: Original Transaction
+    PluginCore->>WalleeAPI: readTransaction(originalId, expand: [token])
+    WalleeAPI-->>PluginCore: Original Transaction (with Token)
     
-    opt If Token Missing
-        PluginCore->>WalleeAPI: createToken(spaceId, originalId)
-        WalleeAPI-->>PluginCore: New Token
+    alt No Token Found
+        PluginCore-->>Scheduler: Error: tokenizationMode was not enabled at checkout
     end
 
-    PluginCore->>WalleeAPI: createTransaction(context)
+    PluginCore->>WalleeAPI: createTransaction(context with token)
     WalleeAPI-->>PluginCore: New Transaction
 
-    PluginCore->>WalleeAPI: processRecurringPayment(spaceId, newTransactionId)
-    WalleeAPI-->>PluginCore: SDK Transaction
-    PluginCore-->>Scheduler: Domain Transaction (AUTHORIZED/PENDING)
+    PluginCore->>WalleeAPI: processWithToken(newTransactionId)
+    WalleeAPI-->>PluginCore: Charge (SUCCESSFUL)
+    PluginCore-->>Scheduler: Domain Transaction (FULFILL)
 ```
 
 ### Running the Example
@@ -89,9 +103,9 @@ sequenceDiagram
 A working example is provided in the `example` directory.
 
 > [!IMPORTANT]
-> The recurring payment example relies on a transaction that has already been authorized. You should run the Checkout examples first, complete the payment in your browser, and then run the recurring script.
+> The recurring payment example requires a transaction that was created **with tokenization enabled** and has already been paid. You must run the updated Checkout examples first to create such a transaction.
 
-1. **Start Checkout**: Run `docs/Checkout/example/1_start_checkout.php`.
+1. **Start Checkout**: Run `docs/Checkout/example/1_start_checkout.php` (now includes `FORCE_CREATION` tokenization).
 2. **Confirm & Pay**: Run `docs/Checkout/example/3_confirm_checkout.php` and follow the link to pay.
 3. **Trigger Recurring**: Run `docs/Recurring/example/recurring.php`.
     * This script automatically detects the active session from the Checkout example.

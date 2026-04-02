@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Settings;
 
 use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
+use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
 
 /**
  * Default base class for Settings Providers.
@@ -14,18 +15,31 @@ use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
  */
 abstract class DefaultSettingsProvider implements SettingsProviderInterface
 {
+    // --- REQUIRED: Must be implemented by the integration ---
+
+    abstract public function getSpaceId(): ?int;
+    abstract public function getUserId(): ?int;
     abstract public function getApiKey(): ?string;
+
+
+    // --- OPTIONAL: Defaults provided below ---
+
+    public function getLogLevel(): ?string
+    {
+        // Return null to let the Settings class default to 'INFO'
+        return null;
+    }
+
+    public function getIntegrationMode(): IntegrationModeEnum
+    {
+        // Default to the standard Hosted Payment Page
+        return IntegrationModeEnum::PAYMENT_PAGE;
+    }
 
     public function getBaseUrl(): ?string
     {
         // Return null to let the Settings class use the production URL
         return null;
-    }
-
-    public function getIntegrationMode(): IntegrationMode
-    {
-        // Default to the standard Hosted Payment Page
-        return IntegrationMode::PAYMENT_PAGE;
     }
 
     public function getLineItemConsistencyEnabled(): ?bool
@@ -39,17 +53,4 @@ abstract class DefaultSettingsProvider implements SettingsProviderInterface
         // Return null to let the Settings class default to BY_LINE_ITEM
         return null;
     }
-
-
-    // --- OPTIONAL: Defaults provided below ---
-
-    public function getLogLevel(): ?string
-    {
-        // Return null to let the Settings class default to 'INFO'
-        return null;
-    }
-    // --- REQUIRED: Must be implemented by the integration ---
-
-    abstract public function getSpaceId(): ?int;
-    abstract public function getUserId(): ?int;
 }

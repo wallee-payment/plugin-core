@@ -10,6 +10,11 @@ enum State: string
 {
     use ValidatesStateTransitions;
 
+    case CREATE = 'CREATE';
+    case PENDING = 'PENDING';
+    case FAILED = 'FAILED';
+    case SUCCESSFUL = 'SUCCESSFUL';
+
     public static function getTransitionMap(): array
     {
         return [
@@ -34,9 +39,4 @@ enum State: string
             ],
         ];
     }
-
-    case CREATE = 'CREATE';
-    case FAILED = 'FAILED';
-    case PENDING = 'PENDING';
-    case SUCCESSFUL = 'SUCCESSFUL';
 }

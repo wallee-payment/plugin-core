@@ -13,17 +13,17 @@ use Wallee\PluginCore\Refund\Refund;
 use Wallee\PluginCore\Refund\RefundContext;
 use Wallee\PluginCore\Refund\RefundGatewayInterface;
 use Wallee\PluginCore\Refund\RefundService;
-use Wallee\PluginCore\Refund\State;
-use Wallee\PluginCore\Refund\Type;
+use Wallee\PluginCore\Refund\State as StateEnum;
+use Wallee\PluginCore\Refund\Type as TypeEnum;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionService;
 
 class RefundServiceTest extends TestCase
 {
     private MockObject|RefundGatewayInterface $gateway;
+    private MockObject|TransactionService $transactionService;
     private MockObject|LoggerInterface $logger;
     private RefundService $service;
-    private MockObject|TransactionService $transactionService;
 
     protected function setUp(): void
     {
@@ -36,6 +36,134 @@ class RefundServiceTest extends TestCase
             $this->transactionService,
             $this->logger,
         );
+    }
+
+    public function testValidateRefundAmountExceedsTotal(): void
+    {
+        $spaceId = 1;
+        $transactionId = 123;
+
+        $transaction = new Transaction();
+        $transaction->id = $transactionId;
+        $transaction->authorizedAmount = 100.00;
+        $transaction->refundedAmount = 0.00;
+
+        $this->transactionService->method('getTransaction')
+            ->willReturn($transaction);
+
+        $context = new RefundContext(
+            transactionId: $transactionId,
+            amount: 150.00, // Exceeds 100
+            merchantReference: 'ref-1',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+        );
+
+        $this->expectException(InvalidRefundException::class);
+        $this->expectExceptionMessage("Refund amount exceeds the remaining authorized amount.");
+
+        $this->service->createRefund($spaceId, $context);
+    }
+
+    public function testValidateRefundLineItemExceedsOriginal(): void
+    {
+        $spaceId = 1;
+        $transactionId = 123;
+
+        $itemA = new LineItem();
+        $itemA->uniqueId = 'item-a';
+        $itemA->quantity = 1;
+        $itemA->amountIncludingTax = 50.00;
+
+        $transaction = new Transaction();
+        $transaction->id = $transactionId;
+        $transaction->authorizedAmount = 100.00;
+        $transaction->lineItems = [$itemA];
+
+        $this->transactionService->method('getTransaction')
+            ->willReturn($transaction);
+
+        $context = new RefundContext(
+            transactionId: $transactionId,
+            amount: 60.00,
+            merchantReference: 'ref-1',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+            lineItems: [
+                ['uniqueId' => 'item-a', 'quantity' => 1, 'amount' => 60.00], // Exceeds 50.00
+            ],
+        );
+
+        $this->expectException(InvalidRefundException::class);
+        $this->expectExceptionMessage("Consistency Error: Total provided refund amount (60.00) does not match the sum of line item reductions (50.00).");
+
+        $this->service->createRefund($spaceId, $context);
+    }
+
+    public function testSuccessfulFullRefund(): void
+    {
+        $spaceId = 1;
+        $transactionId = 123;
+
+        $transaction = new Transaction();
+        $transaction->id = $transactionId;
+        $transaction->authorizedAmount = 100.00;
+
+        $this->transactionService->method('getTransaction')
+            ->willReturn($transaction);
+
+        $context = new RefundContext(
+            transactionId: $transactionId,
+            amount: 100.00,
+            merchantReference: 'ref-full',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+        );
+
+        $expectedRefund = new Refund();
+        $expectedRefund->id = 777;
+        $expectedRefund->state = StateEnum::SUCCESSFUL;
+
+        $this->gateway->expects($this->once())
+            ->method('refund')
+            ->with($spaceId, $context)
+            ->willReturn($expectedRefund);
+
+        $result = $this->service->createRefund($spaceId, $context);
+
+        $this->assertSame($expectedRefund, $result);
+        $this->assertEquals(StateEnum::SUCCESSFUL, $result->state);
+    }
+
+    public function testSuccessfulPartialRefund(): void
+    {
+        $spaceId = 1;
+        $transactionId = 123;
+
+        $transaction = new Transaction();
+        $transaction->id = $transactionId;
+        $transaction->authorizedAmount = 100.00;
+
+        $this->transactionService->method('getTransaction')
+            ->willReturn($transaction);
+
+        $context = new RefundContext(
+            transactionId: $transactionId,
+            amount: 20.00,
+            merchantReference: 'ref-partial',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+        );
+
+        $expectedRefund = new Refund();
+        $expectedRefund->id = 778;
+        $expectedRefund->amount = 20.00;
+        $expectedRefund->state = StateEnum::SUCCESSFUL;
+
+        $this->gateway->expects($this->once())
+            ->method('refund')
+            ->with($spaceId, $context)
+            ->willReturn($expectedRefund);
+
+        $result = $this->service->createRefund($spaceId, $context);
+
+        $this->assertEquals(20.00, $result->amount);
     }
 
     public function testGatewayFailure(): void
@@ -54,7 +182,7 @@ class RefundServiceTest extends TestCase
             transactionId: $transactionId,
             amount: 50.00,
             merchantReference: 'ref-fail',
-            type: Type::MERCHANT_INITIATED_ONLINE,
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
         );
 
         $this->gateway->expects($this->once())
@@ -66,31 +194,38 @@ class RefundServiceTest extends TestCase
 
         $this->service->createRefund($spaceId, $context);
     }
-
-    public function testGetRefundableLineItemsFiltersCorrectly(): void
+    public function testValidateRefundItemTotalExceedsOriginal(): void
     {
-        $product = new LineItem();
-        $product->uniqueId = 'product-1';
-        $product->type = LineItem::TYPE_PRODUCT;
-        $product->amountIncludingTax = 100.00;
+        $spaceId = 1;
+        $transactionId = 123;
 
-        $discount = new LineItem();
-        $discount->uniqueId = 'discount-1';
-        $discount->type = LineItem::TYPE_DISCOUNT;
-        $discount->amountIncludingTax = -20.00;
-
-        $freeGift = new LineItem();
-        $freeGift->uniqueId = 'gift-1';
-        $freeGift->type = LineItem::TYPE_PRODUCT; // Even if product, price is 0
-        $freeGift->amountIncludingTax = 0.00;
+        $itemA = new LineItem();
+        $itemA->uniqueId = 'item-a';
+        $itemA->quantity = 2;
+        $itemA->amountIncludingTax = 50.00; // 25.00 each
 
         $transaction = new Transaction();
-        $transaction->lineItems = [$product, $discount, $freeGift];
+        $transaction->id = $transactionId;
+        $transaction->authorizedAmount = 100.00;
+        $transaction->lineItems = [$itemA];
 
-        $result = $this->service->getRefundableLineItems($transaction);
+        $this->transactionService->method('getTransaction')
+            ->willReturn($transaction);
 
-        $this->assertCount(1, $result);
-        $this->assertSame($product, $result[0]);
+        $context = new RefundContext(
+            transactionId: $transactionId,
+            amount: 60.00,
+            merchantReference: 'ref-1',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+            lineItems: [
+                ['uniqueId' => 'item-a', 'quantity' => 0, 'amount' => 30.00], // (0*25) + (2*30) = 60.00. Exceeds 50.00
+            ],
+        );
+
+        $this->expectException(InvalidRefundException::class);
+        $this->expectExceptionMessage("Refund amount 60.00 for item 'item-a' exceeds original item amount 50.00.");
+
+        $this->service->createRefund($spaceId, $context);
     }
     public function testListRefunds(): void
     {
@@ -119,6 +254,32 @@ class RefundServiceTest extends TestCase
         $this->assertSame($refundB, $result[1]);
     }
 
+    public function testGetRefundableLineItemsFiltersCorrectly(): void
+    {
+        $product = new LineItem();
+        $product->uniqueId = 'product-1';
+        $product->type = LineItem::TYPE_PRODUCT;
+        $product->amountIncludingTax = 100.00;
+
+        $discount = new LineItem();
+        $discount->uniqueId = 'discount-1';
+        $discount->type = LineItem::TYPE_DISCOUNT;
+        $discount->amountIncludingTax = -20.00;
+
+        $freeGift = new LineItem();
+        $freeGift->uniqueId = 'gift-1';
+        $freeGift->type = LineItem::TYPE_PRODUCT; // Even if product, price is 0
+        $freeGift->amountIncludingTax = 0.00;
+
+        $transaction = new Transaction();
+        $transaction->lineItems = [$product, $discount, $freeGift];
+
+        $result = $this->service->getRefundableLineItems($transaction);
+
+        $this->assertCount(1, $result);
+        $this->assertSame($product, $result[0]);
+    }
+
     public function testRefundFailsOnDiscountItem(): void
     {
         $spaceId = 1;
@@ -141,7 +302,7 @@ class RefundServiceTest extends TestCase
             transactionId: $transactionId,
             amount: 10.00,
             merchantReference: 'ref-fail',
-            type: Type::MERCHANT_INITIATED_ONLINE,
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
             lineItems: [
                 ['uniqueId' => 'discount-1', 'quantity' => 1, 'amount' => 10.00],
             ],
@@ -175,7 +336,7 @@ class RefundServiceTest extends TestCase
             transactionId: $transactionId,
             amount: 0.00,
             merchantReference: 'ref-fail',
-            type: Type::MERCHANT_INITIATED_ONLINE,
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
             lineItems: [
                 ['uniqueId' => 'free-1', 'quantity' => 1, 'amount' => 0.00],
             ],
@@ -183,167 +344,6 @@ class RefundServiceTest extends TestCase
 
         $this->expectException(InvalidRefundException::class);
         $this->expectExceptionMessage("Cannot refund line item 'free-1'. Items with zero or negative amounts cannot be refunded.");
-
-        $this->service->createRefund($spaceId, $context);
-    }
-
-    public function testSuccessfulFullRefund(): void
-    {
-        $spaceId = 1;
-        $transactionId = 123;
-
-        $transaction = new Transaction();
-        $transaction->id = $transactionId;
-        $transaction->authorizedAmount = 100.00;
-
-        $this->transactionService->method('getTransaction')
-            ->willReturn($transaction);
-
-        $context = new RefundContext(
-            transactionId: $transactionId,
-            amount: 100.00,
-            merchantReference: 'ref-full',
-            type: Type::MERCHANT_INITIATED_ONLINE,
-        );
-
-        $expectedRefund = new Refund();
-        $expectedRefund->id = 777;
-        $expectedRefund->state = State::SUCCESSFUL;
-
-        $this->gateway->expects($this->once())
-            ->method('refund')
-            ->with($spaceId, $context)
-            ->willReturn($expectedRefund);
-
-        $result = $this->service->createRefund($spaceId, $context);
-
-        $this->assertSame($expectedRefund, $result);
-        $this->assertEquals(State::SUCCESSFUL, $result->state);
-    }
-
-    public function testSuccessfulPartialRefund(): void
-    {
-        $spaceId = 1;
-        $transactionId = 123;
-
-        $transaction = new Transaction();
-        $transaction->id = $transactionId;
-        $transaction->authorizedAmount = 100.00;
-
-        $this->transactionService->method('getTransaction')
-            ->willReturn($transaction);
-
-        $context = new RefundContext(
-            transactionId: $transactionId,
-            amount: 20.00,
-            merchantReference: 'ref-partial',
-            type: Type::MERCHANT_INITIATED_ONLINE,
-        );
-
-        $expectedRefund = new Refund();
-        $expectedRefund->id = 778;
-        $expectedRefund->amount = 20.00;
-        $expectedRefund->state = State::SUCCESSFUL;
-
-        $this->gateway->expects($this->once())
-            ->method('refund')
-            ->with($spaceId, $context)
-            ->willReturn($expectedRefund);
-
-        $result = $this->service->createRefund($spaceId, $context);
-
-        $this->assertEquals(20.00, $result->amount);
-    }
-
-    public function testValidateRefundAmountExceedsTotal(): void
-    {
-        $spaceId = 1;
-        $transactionId = 123;
-
-        $transaction = new Transaction();
-        $transaction->id = $transactionId;
-        $transaction->authorizedAmount = 100.00;
-        $transaction->refundedAmount = 0.00;
-
-        $this->transactionService->method('getTransaction')
-            ->willReturn($transaction);
-
-        $context = new RefundContext(
-            transactionId: $transactionId,
-            amount: 150.00, // Exceeds 100
-            merchantReference: 'ref-1',
-            type: Type::MERCHANT_INITIATED_ONLINE,
-        );
-
-        $this->expectException(InvalidRefundException::class);
-        $this->expectExceptionMessage("Refund amount exceeds the remaining authorized amount.");
-
-        $this->service->createRefund($spaceId, $context);
-    }
-    public function testValidateRefundItemTotalExceedsOriginal(): void
-    {
-        $spaceId = 1;
-        $transactionId = 123;
-
-        $itemA = new LineItem();
-        $itemA->uniqueId = 'item-a';
-        $itemA->quantity = 2;
-        $itemA->amountIncludingTax = 50.00; // 25.00 each
-
-        $transaction = new Transaction();
-        $transaction->id = $transactionId;
-        $transaction->authorizedAmount = 100.00;
-        $transaction->lineItems = [$itemA];
-
-        $this->transactionService->method('getTransaction')
-            ->willReturn($transaction);
-
-        $context = new RefundContext(
-            transactionId: $transactionId,
-            amount: 60.00,
-            merchantReference: 'ref-1',
-            type: Type::MERCHANT_INITIATED_ONLINE,
-            lineItems: [
-                ['uniqueId' => 'item-a', 'quantity' => 0, 'amount' => 30.00], // (0*25) + (2*30) = 60.00. Exceeds 50.00
-            ],
-        );
-
-        $this->expectException(InvalidRefundException::class);
-        $this->expectExceptionMessage("Refund amount 60.00 for item 'item-a' exceeds original item amount 50.00.");
-
-        $this->service->createRefund($spaceId, $context);
-    }
-
-    public function testValidateRefundLineItemExceedsOriginal(): void
-    {
-        $spaceId = 1;
-        $transactionId = 123;
-
-        $itemA = new LineItem();
-        $itemA->uniqueId = 'item-a';
-        $itemA->quantity = 1;
-        $itemA->amountIncludingTax = 50.00;
-
-        $transaction = new Transaction();
-        $transaction->id = $transactionId;
-        $transaction->authorizedAmount = 100.00;
-        $transaction->lineItems = [$itemA];
-
-        $this->transactionService->method('getTransaction')
-            ->willReturn($transaction);
-
-        $context = new RefundContext(
-            transactionId: $transactionId,
-            amount: 60.00,
-            merchantReference: 'ref-1',
-            type: Type::MERCHANT_INITIATED_ONLINE,
-            lineItems: [
-                ['uniqueId' => 'item-a', 'quantity' => 1, 'amount' => 60.00], // Exceeds 50.00
-            ],
-        );
-
-        $this->expectException(InvalidRefundException::class);
-        $this->expectExceptionMessage("Consistency Error: Total provided refund amount (60.00) does not match the sum of line item reductions (50.00).");
 
         $this->service->createRefund($spaceId, $context);
     }

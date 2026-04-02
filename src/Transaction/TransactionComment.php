@@ -14,6 +14,11 @@ class TransactionComment
     use JsonStringableTrait;
 
     /**
+     * @var int The comment ID.
+     */
+    public int $id;
+
+    /**
      * @var string The comment content.
      */
     public string $content;
@@ -22,9 +27,4 @@ class TransactionComment
      * @var \DateTimeImmutable|null The creation date.
      */
     public ?\DateTimeImmutable $createdOn = null;
-
-    /**
-     * @var int The comment ID.
-     */
-    public int $id;
 }

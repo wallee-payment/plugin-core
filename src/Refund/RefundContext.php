@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Refund;
 
-use Wallee\PluginCore\Refund\Type as TypeEnum;
 use Wallee\PluginCore\Render\JsonStringableTrait;
 
 /**
@@ -18,8 +17,8 @@ class RefundContext
      * @param int $transactionId
      * @param float $amount
      * @param string $merchantReference
-     * @param TypeEnum $type
-     * @param list<array{uniqueId: ?string, quantity: float, amount: float}> $lineItems Optional list of line item reductions.
+     * @param Type $type
+     * @param array $lineItems Optional list of line item reductions: [['uniqueId' => string, 'quantity' => float, 'amount' => float]].
      *                         NOTE: 'amount' is the Unit Price Reduction per remaining item, NOT the total reduction amount.
      *                         See docs/Refund/README.md for calculation formula.
      */
@@ -27,8 +26,8 @@ class RefundContext
         public readonly int $transactionId,
         public readonly float $amount,
         public readonly string $merchantReference,
-        public readonly TypeEnum $type,
-        /** @var list<array{uniqueId: ?string, quantity: float, amount: float}> */
+        public readonly Type $type,
+        /** @var list<array{uniqueId: ?string, quantity: float, amount: float}> List of line item reductions. */
         public readonly array $lineItems = [],
         public ?string $externalId = null,
     ) {

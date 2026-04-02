@@ -4,24 +4,24 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Tests\Webhook;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Wallee\PluginCore\DeliveryIndication\State as PluginCoreDeliveryIndicationState;
-use Wallee\PluginCore\ManualTask\State as PluginCoreManualTaskState;
-use Wallee\PluginCore\Refund\State as PluginCoreRefundState;
-use Wallee\PluginCore\Token\Version\State as PluginCoreTokenVersionState;
-use Wallee\PluginCore\Transaction\Completion\State as PluginCoreTransactionCompletionState;
-use Wallee\PluginCore\Transaction\Invoice\State as PluginCoreTransactionInvoiceState;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Wallee\PluginCore\Transaction\State as PluginCoreTransactionState;
-use Wallee\PluginCore\Transaction\Void\State as PluginCoreTransactionVoidState;
-use Wallee\Sdk\Model\DeliveryIndicationState as SdkDeliveryIndicationState;
-use Wallee\Sdk\Model\ManualTaskState as SdkManualTaskState;
-use Wallee\Sdk\Model\RefundState as SdkRefundState;
-use Wallee\Sdk\Model\TokenVersionState as SdkTokenVersionState;
-use Wallee\Sdk\Model\TransactionCompletionState as SdkTransactionCompletionState;
-use Wallee\Sdk\Model\TransactionInvoiceState as SdkTransactionInvoiceState;
 use Wallee\Sdk\Model\TransactionState as SdkTransactionState;
+use Wallee\PluginCore\Refund\State as PluginCoreRefundState;
+use Wallee\Sdk\Model\RefundState as SdkRefundState;
+use Wallee\PluginCore\Token\Version\State as PluginCoreTokenVersionState;
+use Wallee\Sdk\Model\TokenVersionState as SdkTokenVersionState;
+use Wallee\PluginCore\DeliveryIndication\State as PluginCoreDeliveryIndicationState;
+use Wallee\Sdk\Model\DeliveryIndicationState as SdkDeliveryIndicationState;
+use Wallee\PluginCore\ManualTask\State as PluginCoreManualTaskState;
+use Wallee\Sdk\Model\ManualTaskState as SdkManualTaskState;
+use Wallee\PluginCore\Transaction\Completion\State as PluginCoreTransactionCompletionState;
+use Wallee\Sdk\Model\TransactionCompletionState as SdkTransactionCompletionState;
+use Wallee\PluginCore\Transaction\Invoice\State as PluginCoreTransactionInvoiceState;
+use Wallee\Sdk\Model\TransactionInvoiceState as SdkTransactionInvoiceState;
 use Wallee\Sdk\Model\TransactionVoidState as SdkTransactionVoidState;
+use Wallee\PluginCore\Transaction\Void\State as PluginCoreTransactionVoidState;
 
 class StateSynchronizationTest extends TestCase
 {
@@ -66,6 +66,10 @@ class StateSynchronizationTest extends TestCase
         ];
     }
 
+    /**
+     * @param class-string $sdkStateClass
+     * @param class-string $internalEnumClass
+     */
     #[DataProvider('stateMappingProvider')]
     public function testInternalEnumCoversAllSdkStates(string $sdkStateClass, string $internalEnumClass): void
     {

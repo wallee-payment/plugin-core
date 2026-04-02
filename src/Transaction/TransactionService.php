@@ -7,12 +7,27 @@ namespace Wallee\PluginCore\Transaction;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
-use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting as PaymentMethodSortingEnum;
+use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
+use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Exception\TransactionTotalNegativeException;
+use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
+use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 
+/**
+ * Manages the lifecycle of payment transactions.
+ *
+ * This service orchestrates transaction creation, updates, and state retrieval.
+ * It ensures that line items remain consistent with the expected totals and handles
+ * the idempotent "upsert" logic required for seamless session management in shop integrations.
+ */
 class TransactionService
 {
+    /**
+     * @param TransactionGatewayInterface $gateway Interface to the SDK or persistence layer.
+     * @param LineItemConsistencyService $consistencyService Ensures totals and taxes match line item sums.
+     * @param LoggerInterface $logger The system logger.
+     */
     public function __construct(
         private readonly TransactionGatewayInterface $gateway,
         private readonly LineItemConsistencyService $consistencyService,
@@ -21,25 +36,32 @@ class TransactionService
     }
 
     /**
-     * Creates a new transaction.
+     * Synchronizes a local transaction context with the remote gateway.
      *
-     * @param TransactionContext $context The transaction context.
-     * @return Transaction The created transaction.
-     * @throws TransactionException If creation fails.
+     * This method ensures that all line items are sanitized (e.g. handling negative totals)
+     * and satisfy the gateway's consistency requirements before transmission.
+     *
+     * @param TransactionContext $context The transaction settings and line items.
+     * @return Transaction The persisted transaction object.
+     * @throws TransactionException If the gateway rejects the creation.
      */
     public function createTransaction(TransactionContext $context): Transaction
     {
         try {
-            $this->logger->debug(sprintf(
-                "Creating new transaction for Merchant Ref: %s",
-                $context->merchantReference ?? 'unknown',
-            ));
+            $merchantRef = $context->merchantReference ?? 'unknown';
+            $this->logger->debug("Creating new transaction for Merchant Ref: $merchantRef");
 
-            if (($context->expectedGrandTotal ?? 0.0) < -0.00000001) {
+            // Negative Total Sanitization
+            // If the overall total is negative (common with aggressive discounts), we normalize it to zero
+            // and adjust line items to satisfy the SDK's non-negative requirement.
+            if (isset($context->expectedGrandTotal) && $context->expectedGrandTotal < -0.00000001) {
                 $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems);
                 $context->expectedGrandTotal = 0.0;
             }
 
+            // Consistency Enforcement
+            // Many payment gateways require that the sum of line items exactly matches the grand total.
+            // We use the consistency service to handle potential rounding discrepancies.
             $context->lineItems = $this->consistencyService->ensureConsistency(
                 $context->lineItems,
                 $context->expectedGrandTotal,
@@ -50,11 +72,7 @@ class TransactionService
 
             $result = $this->gateway->create($context);
 
-            $this->logger->debug(sprintf(
-                "Transaction created. ID: %s, State: %s",
-                $result->id ?? 'unknown',
-                $result->state?->value ?? 'unknown',
-            ));
+            $this->logger->debug("Transaction created. ID: {$result->id}, State: {$result->state->value}");
             return $result;
         } catch (\Throwable $e) {
             $this->logger->error("Create failed: {$e->getMessage()}");
@@ -66,23 +84,27 @@ class TransactionService
     }
 
     /**
-     * Gets available payment methods for a transaction.
+     * Retrieves and optionally sorts payment methods available for a transaction.
      *
-     * @param int $spaceId The space ID.
-     * @param int $transactionId The transaction ID.
-     * @param PaymentMethodSortingEnum $sortBy The sorting criteria.
-     * @return PaymentMethod[] The available payment methods.
+     * Sorting is performed locally to ensure a consistent user experience regardless
+     * of the order returned by the remote API.
+     *
+     * @param int $spaceId The identity space.
+     * @param int $transactionId The unique transaction identifier.
+     * @param PaymentMethodSorting $sortBy Logic used to order the results.
+     * @return PaymentMethod[] List of available methods.
      */
-    public function getAvailablePaymentMethods(int $spaceId, int $transactionId, PaymentMethodSortingEnum $sortBy = PaymentMethodSortingEnum::DEFAULT): array
+    public function getAvailablePaymentMethods(int $spaceId, int $transactionId, PaymentMethodSorting $sortBy = PaymentMethodSorting::DEFAULT): array
     {
         $this->logger->debug("Fetching available payment methods for Transaction $transactionId in Space $spaceId.");
 
         $methods = $this->gateway->getAvailablePaymentMethods($spaceId, $transactionId);
 
-        if ($sortBy === PaymentMethodSortingEnum::NAME) {
+        if ($sortBy === PaymentMethodSorting::NAME) {
             $this->logger->debug("Sorting payment methods by name.");
             usort($methods, function (PaymentMethod $a, PaymentMethod $b) {
-                // Get the first available title (language agnostic)
+                // Localization-agnostic sorting
+                // We pick the first available title from the localized map.
                 $titleA = $a->title;
                 $titleB = $b->title;
                 $nameA = !empty($titleA) ? reset($titleA) : '';
@@ -91,17 +113,18 @@ class TransactionService
             });
         }
 
-        $this->logger->debug(sprintf("Found %d payment methods.", count($methods)));
+        $count = count($methods);
+        $this->logger->debug("Found $count payment methods.");
 
         return $methods;
     }
 
     /**
-     * Gets the latest transactions.
+     * Retrieves a list of the most recent transactions.
      *
-     * @param int $spaceId The space ID.
-     * @param int $limit The number of transactions to retrieve (default: 10).
-     * @return Transaction[] The latest transactions.
+     * @param int $spaceId The identity space.
+     * @param int $limit Maximum number of results to return.
+     * @return Transaction[] List of recent transactions.
      */
     public function getLatestTransactions(int $spaceId, int $limit = 10): array
     {
@@ -113,11 +136,11 @@ class TransactionService
     }
 
     /**
-     * Gets the payment URL.
+     * Retrieves the URL where the customer should be redirected to complete payment.
      *
-     * @param int $spaceId The space ID.
-     * @param int $transactionId The transaction ID.
-     * @return string The payment URL.
+     * @param int $spaceId The identity space.
+     * @param int $transactionId The unique transaction identifier.
+     * @return string The absolute redirect URL.
      */
     public function getPaymentUrl(int $spaceId, int $transactionId): string
     {
@@ -126,25 +149,24 @@ class TransactionService
     }
 
     /**
-     * Gets a transaction.
+     * Retrieves the latest state of a transaction from the gateway.
      *
-     * @param int $spaceId The space ID.
-     * @param int $transactionId The transaction ID.
-     * @return Transaction The transaction.
+     * @param int $spaceId The identity space.
+     * @param int $transactionId The unique transaction identifier.
+     * @return Transaction The domain object representing the transaction.
      */
     public function getTransaction(int $spaceId, int $transactionId): Transaction
     {
-        $transaction = $this->gateway->get($spaceId, $transactionId);
-        $this->logger->debug("Service: Transaction found.", ['state' => $transaction->state->value]);
-        return $transaction;
+        $this->logger->debug("Fetching Transaction $transactionId in Space $spaceId.");
+        return $this->gateway->get($spaceId, $transactionId);
     }
 
     /**
-     * Searches for transactions matching the criteria.
+     * Searches for transactions matching the provided criteria.
      *
-     * @param int $spaceId The space ID.
-     * @param TransactionSearchCriteria $criteria The search criteria.
-     * @return Transaction[] The matching transactions.
+     * @param int $spaceId The identity space.
+     * @param TransactionSearchCriteria $criteria Filters and pagination settings.
+     * @return Transaction[] List of matching transactions.
      */
     public function searchTransactions(int $spaceId, TransactionSearchCriteria $criteria): array
     {
@@ -152,23 +174,16 @@ class TransactionService
     }
 
     /**
-     * Updates an existing transaction.
+     * Updates an existing transaction with fresh context.
      *
-     * @param TransactionContext $context The transaction context.
+     * @param TransactionContext $context The new context (must contain transactionId).
      * @return Transaction The updated transaction.
-     * @throws \Throwable If update fails.
+     * @throws \Throwable If the update is rejected by the gateway.
      */
     protected function updateTransaction(TransactionContext $context): Transaction
     {
         try {
             $this->logger->debug("Updating transaction {$context->transactionId}");
-
-            // Consistency checks should ideally be done here too if line items change,
-            // but strict requirement says "add validation... wherever the TransactionContext is validated".
-            // Assuming consistency service call is desired if line items are present, but for now focusing on validation.
-            // Requirement: "This check should happen after the LineItemConsistencyService has been called to ensure the total is final."
-            // In createTransaction, consistency is called. In updateTransaction, it typically should be if line items are updated.
-            // Let's ensure validation is called.
 
             $this->validateContext($context);
 
@@ -189,12 +204,16 @@ class TransactionService
     }
 
     /**
-     * Upserts a transaction (Create or Update).
+     * Idempotently creates or updates a transaction session.
      *
-     * @param TransactionContext $context The transaction context.
-     * @param TransactionPersistenceInterface $persistenceStrategy The persistence strategy.
-     * @return Transaction The resulting transaction.
-     * @throws TransactionException If upsert fails.
+     * This method attempts to update an existing session if valid (PENDING state).
+     * If the session is expired, locked, or non-existent, it automatically falls back
+     * to creating a fresh transaction to ensure the checkout flow is never blocked.
+     *
+     * @param TransactionContext $context The desired transaction state.
+     * @param TransactionPersistenceInterface $persistenceStrategy Logic for saving the resulting ID.
+     * @return Transaction The resulting active transaction.
+     * @throws TransactionException If both update and fallback creation fail.
      */
     public function upsert(TransactionContext $context, TransactionPersistenceInterface $persistenceStrategy): Transaction
     {
@@ -204,40 +223,44 @@ class TransactionService
             $result = $this->createTransaction($context);
         } else {
             try {
-                // READ: Returns a DOMAIN Object (Transaction)
+                // State Verification
+                // We fetch the remote state to ensure initialization is only attempted on PENDING transactions.
                 $existingTransaction = $this->gateway->find($context->spaceId, $context->transactionId);
 
-                // CHECK: Use Domain Enum
                 if (!$existingTransaction || $existingTransaction->state !== State::PENDING) {
-                    // Throwing here forces the catch block to trigger the fallback
+                    // We throw to trigger the fallback logic below if the transaction is no longer mutable.
                     throw new TransactionException("Transaction not PENDING or not found.");
                 }
 
-                if (($context->expectedGrandTotal ?? 0.0) < -0.00000001) {
+                if (isset($context->expectedGrandTotal) && $context->expectedGrandTotal < -0.00000001) {
                     $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems);
                     $context->expectedGrandTotal = 0.0;
                 }
 
-                // WRITE: Pass Primitives (ID and Version)
+                // Atomic Update
+                // We pass the version to the gateway to prevent concurrent overwrites (Optimistic Locking).
                 $result = $this->gateway->update(
                     $existingTransaction->id,
                     $existingTransaction->version,
                     $context,
                 );
             } catch (\Throwable $e) {
-                // Fallback Logic
-                $this->logger->notice("Update failed... Fallback to CREATE.");
+                // Fallback Recovery
+                // If the update fails (e.g. version mismatch or state change), we start a new session.
+                $this->logger->notice("Update failed ({$e->getMessage()})... Fallback to CREATE.");
                 $context->transactionId = null;
                 $result = $this->createTransaction($context);
             }
         }
 
-        // Persistence logic remains the same
+        // Persistence Management
+        // If a new ID was generated during this process, we must inform the persistence layer.
         if ($result->id !== $context->transactionId) {
             try {
                 $persistenceStrategy->persist($result->id);
                 $this->logger->debug("Persisted new transaction ID {$result->id} via strategy.");
             } catch (\Throwable $e) {
+                // Persistence failure is critical as it breaks session continuity.
                 $this->logger->critical("Transaction created ({$result->id}) but Persistence Strategy failed: {$e->getMessage()}");
                 throw new TransactionException("System Error: Could not save transaction session.", 0, $e);
             }
@@ -247,17 +270,20 @@ class TransactionService
     }
 
     /**
-     * Validates the transaction context.
+     * Validates that the transaction context satisfies basic business invariants.
      *
-     * @param TransactionContext $context The transaction context.
-     * @throws TransactionException If validation fails.
+     * @param TransactionContext $context The context to validate.
+     * @throws TransactionException If business rules are violated.
      */
     private function validateContext(TransactionContext $context): void
     {
-        // Use an epsilon for float comparison logic
+        // Floating point epsilon for safe comparisons
+        // Digital payments use decimals that can cause precision issues. We use an epsilon to avoid
+        // false positives on zero comparisons.
         $epsilon = 0.00000001;
 
-        // Check for Negative (Total is significantly less than zero)
+        // Negative Total Check
+        // While discounts can be negative, the final transaction total must always be >= 0.
         if ($context->expectedGrandTotal < -$epsilon) {
             throw new TransactionTotalNegativeException();
         }

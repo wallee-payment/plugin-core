@@ -19,27 +19,6 @@ class SettingsTest extends TestCase
         $this->settings = new Settings($this->providerMock);
     }
 
-    public function testGetApiKeyReturnsValueFromProvider(): void
-    {
-        $expectedKey = 'test-api-key';
-        $this->providerMock->method('getApiKey')->willReturn($expectedKey);
-        $this->assertSame($expectedKey, $this->settings->getApiKey());
-    }
-
-    public function testGetApiKeyThrowsExceptionWhenProviderReturnsEmptyString(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->providerMock->method('getApiKey')->willReturn('');
-        $this->settings->getApiKey();
-    }
-
-    public function testGetApiKeyThrowsExceptionWhenProviderReturnsNull(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->providerMock->method('getApiKey')->willReturn(null);
-        $this->settings->getApiKey();
-    }
-
     public function testGetSpaceIdReturnsValueFromProvider(): void
     {
         $expectedId = 12345;
@@ -73,5 +52,26 @@ class SettingsTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->providerMock->method('getUserId')->willReturn(null);
         $this->settings->getUserId();
+    }
+
+    public function testGetApiKeyReturnsValueFromProvider(): void
+    {
+        $expectedKey = 'test-api-key';
+        $this->providerMock->method('getApiKey')->willReturn($expectedKey);
+        $this->assertSame($expectedKey, $this->settings->getApiKey());
+    }
+
+    public function testGetApiKeyThrowsExceptionWhenProviderReturnsNull(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->providerMock->method('getApiKey')->willReturn(null);
+        $this->settings->getApiKey();
+    }
+
+    public function testGetApiKeyThrowsExceptionWhenProviderReturnsEmptyString(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->providerMock->method('getApiKey')->willReturn('');
+        $this->settings->getApiKey();
     }
 }

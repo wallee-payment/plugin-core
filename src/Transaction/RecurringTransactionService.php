@@ -6,6 +6,9 @@ namespace Wallee\PluginCore\Transaction;
 
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Token\TokenService;
+use Wallee\PluginCore\Transaction\Transaction;
+use Wallee\PluginCore\Transaction\TransactionContext;
+use Wallee\PluginCore\Transaction\TransactionService;
 
 /**
  * Service for handling recurring transactions.
@@ -34,14 +37,24 @@ readonly class RecurringTransactionService
 
         $originalTransaction = $this->transactionService->getTransaction($spaceId, $transactionId);
 
+        // A token with stored payment credentials is required for recurring charges.
+        // The original transaction must have been created with tokenizationMode = FORCE_CREATION
+        // so the API automatically generates a token when the payment completes.
         if (!$originalTransaction->token) {
-            $this->logger->debug("Transaction $transactionId has no token. Attempting to create one.");
-            $token = $this->tokenService->createTokenForTransaction($spaceId, $transactionId);
-            if ($token) {
-                $originalTransaction->token = $token;
-            } else {
-                $this->logger->error("Could not create token for Transaction $transactionId.");
-            }
+            $this->logger->error(
+                "Transaction $transactionId has no token. "
+                    . "Recurring payments require the original transaction to have been created "
+                    . "with tokenizationMode = FORCE_CREATION.",
+            );
+            throw new \RuntimeException(
+                "Transaction $transactionId has no token. "
+                    . "The original transaction must be created with tokenizationMode = FORCE_CREATION "
+                    . "to enable recurring payments.",
+            );
+        }
+
+        if ($originalTransaction->billingAddress === null) {
+            throw new \RuntimeException("Transaction $transactionId has no billing address.");
         }
 
         $context = TransactionContext::fromTransaction($originalTransaction);

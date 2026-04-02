@@ -33,11 +33,12 @@ use Wallee\PluginCore\Webhook\WebhookService;
 $config = new WebhookConfig(
     url: 'https://your-shop.com/webhook/callback',
     name: 'Order Authorization Listener',
-    entity: \Wallee\PluginCore\Webhook\Enum\WebhookListener::TRANSACTION,
-    eventStates: [\Wallee\PluginCore\Transaction\State::AUTHORIZED->value]
+    entityId: \Wallee\PluginCore\Webhook\Enum\WebhookListener::TRANSACTION->value,
+    eventStateId: \Wallee\PluginCore\Transaction\State::AUTHORIZED->value
 );
 
-$webhookService->installWebhook($spaceId, $config);
+$webhookUrl = $webhookService->installWebhook($spaceId, $config);
+echo "Installed Webhook URL: " . $webhookUrl->url;
 ```
 
 ## Management Operations
@@ -52,10 +53,15 @@ $webhookService->updateWebhookUrl($spaceId, $webhookUrlId, 'https://new-url.com/
 
 ### Uninstallation
 
-Correctly removes both the listener and the URL definition. If listener deletion fails, it still attempts to clean up the URL.
+Correctly removes both the listener and the URL definition. It looks up the associated listener using the entity and state definitions to ensure clean removal.
 
 ```php
-$webhookService->uninstallWebhook($spaceId, $webhookUrlId, $listenerId);
+$webhookService->uninstallWebhook(
+    $spaceId,
+    $webhookUrlId,
+    \Wallee\PluginCore\Webhook\Enum\WebhookListener::TRANSACTION->value,
+    \Wallee\PluginCore\Transaction\State::AUTHORIZED->value
+);
 ```
 
 ## Usage Example

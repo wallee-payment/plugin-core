@@ -4,48 +4,71 @@ namespace MyPlugin\ExampleRefundImplementation;
 
 /**
  * Refund Example
- *
+ * 
  * This script demonstrates the Refund functionality:
- * - Validates refund (fails if amount too high).
- * - Creating a Partial Refund.
- * - Creating a Full Refund (of remaining amount).
- *
+ * 1. Validates refund (fails if amount too high).
+ * 2. Creating a Partial Refund.
+ * 3. Creating a Full Refund (of remaining amount).
+ * 
  * USAGE:
- * php refund.php [transaction_id]
+ * php refund.php [session_file_or_dir] [transaction_id]
  */
-
-use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\Refund\context\RefundContext as ContextRefundContext;
-use Wallee\PluginCore\Refund\RefundContext;
-use Wallee\PluginCore\Refund\RefundService;
-use Wallee\PluginCore\Refund\Type;
-use Wallee\PluginCore\Sdk\SdkV1\RefundGateway;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
-use Wallee\PluginCore\Transaction\TransactionService;
-use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
 
 error_reporting(E_ALL & ~E_DEPRECATED);
 
-/** @var array $common */
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Sdk\SdkV2\RefundGateway;
+use Wallee\PluginCore\Settings\Settings;
+use Wallee\PluginCore\Transaction\TransactionService;
+use Wallee\PluginCore\Refund\RefundService;
+use Wallee\PluginCore\Refund\RefundContext;
+use Wallee\PluginCore\Refund\Type as TypeEnum;
+use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// Load Transaction ID from command line arguments or environment.
+$sdkProvider = $common['sdkProvider'];
+
+// 2. Load Transaction ID
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
-    exit($e->getMessage());
+    exit(1);
 }
 
 echo "Operating on Transaction ID: $transactionId\n";
 
-// Setup required services.
+// 3. Setup Services
 $transactionGateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $refundGateway = new RefundGateway($sdkProvider, $logger);
+
+// We need TransactionService to inject into RefundService
+// TransactionService needs many dependencies, but for RefundService it only uses 'getTransaction'.
+// Ideally we mock/stub strictly or use a simpler setup, but here we instantiate the real service stack.
+// Note: TransactionService dependencies might need mocking if we don't want to instantiate everything.
+// However, in this integration example, let's try to instantiate dependencies if possible.
+// Wait, TransactionService depends on TransactionGateway, TransactionCompletionGateway, LineItemConsistencyService.
+// We only need TransactionGateway for 'getTransaction' in RefundService context usually (read only).
+// But let's check RefundService constructor.
+// public function __construct(RefundGatewayInterface, TransactionService, LoggerInterface)
+
+// To avoid instantiating the heavy TransactionService with all its write-dependencies just for reading,
+// we might conceptually prefer a TransactionRepository, but for now we follow the existing pattern.
+// We'll mock the specific parts we don't need or instantiate nulls if PHP allows/we dare, 
+// OR just instantiate the REAL TransactionService if we can cheaply.
+// Let's rely on standard instantiation.
+use Wallee\PluginCore\LineItem\LineItemConsistencyService;
+
 $consistency = new LineItemConsistencyService($settings, $logger);
 
 $transactionService = new TransactionService(
@@ -60,12 +83,14 @@ $refundService = new RefundService(
     $logger
 );
 
+// ... (previous code)
+
 // Helper to list refunds
-function list_refunds(RefundService $service, int $spaceId, int $transactionId)
+function list_refunds($service, $spaceId, $transactionId)
 {
     echo "\nFetching Refunds for Transaction $transactionId...\n";
     try {
-        $refunds = $service->getRefunds($spaceId, $transactionId);
+        $refunds = $service->getRefunds((int)$spaceId, $transactionId);
         if (empty($refunds)) {
             echo " > No refunds found.\n";
             return;
@@ -78,33 +103,31 @@ function list_refunds(RefundService $service, int $spaceId, int $transactionId)
     }
 }
 
-// Load the current transaction to check its authorized and refunded amounts.
+// 4. Load Transaction to see current state
 try {
     $transaction = $transactionService->getTransaction((int)$spaceId, $transactionId);
     echo "Current Authorized Amount: " . $transaction->authorizedAmount . "\n";
     echo "Already Refunded Amount:   " . $transaction->refundedAmount . "\n";
 
-    list_refunds($refundService, (int)$spaceId, $transactionId);
+    list_refunds($refundService, $spaceId, $transactionId);
 
-    $remaining = $transaction->authorizedAmount - $transaction->refundedAmount;
-    if ($remaining < 0.001) {
+    if ($transaction->refundedAmount >= $transaction->authorizedAmount - 0.001) { // float epsilon
         echo "\n⚠️  WARNING: Transaction is already fully refunded.\n";
-        echo "    Tests expecting to create new refunds will likely fail.\n";
+        echo "    Tests expecting to create new refunds (Test 2, Test 3) will likely fail or skip.\n";
+        echo "    Please run the Checkout Example to create a fresh transaction.\n";
     }
 } catch (\Exception $e) {
     exit("Failed to load transaction: " . $e->getMessage() . "\n");
 }
 
-// Test validation error by attempting to refund more than the authorized amount.
+// 5. TEST: Validation Error (Over-refund)
 echo "\n--- TEST 1: Validation Error (Refund Amount > Authorized) ---\n";
 $excessiveAmount = $transaction->authorizedAmount + 10.0;
-// Note: RefundContext signature check. Original script used named args.
-// public function __construct(int $transactionId, float $amount, string $merchantReference, Type $type, array $lineItems = [])
 $context = new RefundContext(
     transactionId: $transactionId,
     amount: $excessiveAmount,
-    merchantReference: 'incorrect-amount-test',
-    type: Type::MERCHANT_INITIATED_ONLINE
+    merchantReference: 'incorect-amount-test',
+    type: TypeEnum::MERCHANT_INITIATED_ONLINE
 );
 
 try {
@@ -116,44 +139,43 @@ try {
     echo "FAILED: Caught unexpected exception: " . $e->getMessage() . "\n";
 }
 
-// Test a partial refund for a specific line item.
-echo "\n--- TEST 2: Partial Refund (On Swiss Watch) ---\n";
+// 6. TEST: Partial Refund
+echo "\n--- TEST 2: Partial Refund (10.00 per unit for Swiss Watch) ---\n";
 
-// Find 'sku-123'
+// Find the Swiss Watch line item to determine valid refund amount
 $targetSku = 'sku-123';
 $targetItem = null;
-foreach ($transaction->lineItems as $item) {
-    if ($item->sku === $targetSku) {
-        $targetItem = $item;
+foreach ($transaction->lineItems as $lineItem) {
+    if ($lineItem->sku === $targetSku) {
+        $targetItem = $lineItem;
         break;
     }
 }
 
-if ($targetItem) {
-    echo "Found target item (sku-123) with Quantity: {$targetItem->quantity}\n";
+if (!$targetItem) {
+    echo "SKIPPED: Could not find line item with SKU '$targetSku' to test partial refund.\n";
+} else {
+    // Determine how many we can refund/reduce
+    $qty = $targetItem->quantity;
+    echo "Found Swtich Watch with Quantity: $qty\n";
 
-    // We want to refund a fixed amount, say 20.00 total for this line item.
-    // OR roughly 50% of the item value?
-    // Requirement: "amount = quantity * unit_reduction".
-    // Let's assume we want to refund 10.00 per unit.
+    // We want to reduce the unit price by 10.00.
+    // Total Refund Amount = Quantity * UnitReduction
     $unitReduction = 10.00;
-    $totalRefundAmount = $targetItem->quantity * $unitReduction;
+    $totalRefundAmount = $qty * $unitReduction;
 
-    echo "Calculated Refund: $unitReduction per unit * {$targetItem->quantity} units = $totalRefundAmount\n";
+    echo "Refunding total of $totalRefundAmount ($unitReduction per item * $qty items)...\n";
 
     $context = new RefundContext(
         transactionId: $transactionId,
         amount: $totalRefundAmount,
         merchantReference: 'partial-refund-test',
-        type: Type::MERCHANT_INITIATED_ONLINE,
+        type: TypeEnum::MERCHANT_INITIATED_ONLINE,
         lineItems: [
             [
                 'uniqueId' => $targetItem->uniqueId,
-                'quantity' => 0, // 0 quantity usually means "do not return stock" or simple reduction?
-                // Original script used 0. 
-                // "Refund 20.00 from the Swiss Watch ... without returning the item (qty 0)."
-                'amount' => $unitReduction // SdkV1 usually expects unit reduction amount here if type relies on it? 
-                // Original: "10.00 * 2 items = 20.00 Total Refund". So this is unit amount.
+                'quantity' => 0, // We are not returning the item, just reducing price
+                'amount' => $unitReduction // Reduction PER UNIT
             ]
         ]
     );
@@ -161,27 +183,25 @@ if ($targetItem) {
     try {
         $refund = $refundService->createRefund((int)$spaceId, $context);
         echo "SUCCESS: Partial Refund Created. ID: " . $refund->id . ", State: " . $refund->state->value . "\n";
-        list_refunds($refundService, (int)$spaceId, $transactionId);
+        list_refunds($refundService, $spaceId, $transactionId);
     } catch (\Exception $e) {
         echo "FAILED: " . $e->getMessage() . "\n";
     }
-} else {
-    echo "SKIPPED: Target item 'sku-123' not found in transaction.\n";
 }
 
-// Test refunding the entire remaining balance of the transaction.
+// 7. TEST: Full Remaining Refund (if any left)
 echo "\n--- TEST 3: Refund Remaining Balance ---\n";
-// Reload transaction
+// Reload transaction to get updated refundedAmount
 $transaction = $transactionService->getTransaction((int)$spaceId, $transactionId);
 $remaining = $transaction->authorizedAmount - $transaction->refundedAmount;
 
-if ($remaining > 0.001) {
+if ($remaining > 0) {
     echo "Refunding remaining: $remaining\n";
     $context = new RefundContext(
         transactionId: $transactionId,
         amount: $remaining,
         merchantReference: 'final-refund-test',
-        type: Type::MERCHANT_INITIATED_ONLINE
+        type: TypeEnum::MERCHANT_INITIATED_ONLINE
     );
 
     try {

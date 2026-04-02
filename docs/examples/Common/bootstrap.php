@@ -1,56 +1,47 @@
 <?php
 
-/**
- * Common Bootstrap for PluginCore Examples
- */
-
 require_once __DIR__ . '/../../../vendor/autoload.php';
 
-// Manually require shared classes since docs/ is likely not in composer autoload
-// Also ensure the LoggerInterface is loaded early to prevent symbol mismatch
-require_once __DIR__ . '/../../../src/Log/LoggerInterface.php';
-require_once __DIR__ . '/../../../src/Transaction/TransactionPersistenceInterface.php';
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Settings\Settings;
+use Wallee\PluginCore\Examples\Common\SimpleLogger;
+use Wallee\PluginCore\Examples\Common\EnvSettingsProvider;
+use Wallee\PluginCore\Examples\Common\FilePersistence;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+
+// Load helpers
 require_once __DIR__ . '/SimpleLogger.php';
 require_once __DIR__ . '/EnvSettingsProvider.php';
 require_once __DIR__ . '/FilePersistence.php';
 require_once __DIR__ . '/TransactionIdLoader.php';
 
-use Wallee\PluginCore\Examples\Common\EnvSettingsProvider;
-use Wallee\PluginCore\Examples\Common\FilePersistence;
-use Wallee\PluginCore\Examples\Common\SimpleLogger;
-use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Settings\Settings;
+// 1. Credentials Check
+$spaceId = getenv('PLUGINCORE_DEMO_SPACE_ID');
+$userId = getenv('PLUGINCORE_DEMO_USER_ID');
+$apiSecret = getenv('PLUGINCORE_DEMO_API_SECRET');
 
-// Validate that all required environment variables are present.
-$required = ['PLUGINCORE_DEMO_SPACE_ID', 'PLUGINCORE_DEMO_USER_ID', 'PLUGINCORE_DEMO_API_SECRET'];
-foreach ($required as $var) {
-    if (!getenv($var)) {
-        fwrite(STDERR, "ERROR: Missing environment variable $var\n");
-        exit(1);
-    }
+if (!$spaceId || !$userId || !$apiSecret) {
+    echo "ERROR: Missing Credentials.\n";
+    echo "Please set PLUGINCORE_DEMO_SPACE_ID, PLUGINCORE_DEMO_USER_ID, and PLUGINCORE_DEMO_API_SECRET.\n";
+    exit(1);
 }
 
-$spaceId = (int)getenv('PLUGINCORE_DEMO_SPACE_ID');
-
-// Initialize core services and settings.
+// 2. Initialize Services
 $logger = new SimpleLogger();
+
 $settingsProvider = new EnvSettingsProvider();
 $settings = new Settings($settingsProvider);
+
 $sdkProvider = new SdkProvider($settings);
 
-// Initialize helper components for persistence and argument loading.
-// We use a local JSON file for session persistence in these examples.
-$persistence = new FilePersistence('session.json');
-$argLoader = new TransactionIdLoader($persistence);
-
-// Return the initialized components as an associative array.
+// Return initialized components
 return [
-    'sdkProvider' => $sdkProvider,
-    'settings' => $settings,
+    'spaceId' => (int)$spaceId,
+    'userId' => (int)$userId,
+    'apiSecret' => $apiSecret,
     'logger' => $logger,
-    'spaceId' => $spaceId,
-    'persistence' => $persistence,
-    'sdk_provider' => $sdkProvider,
+    'settings' => $settings,
+    'sdkProvider' => $sdkProvider,
+    'sdk_provider' => $sdkProvider, // alias
     'settings_provider' => $settingsProvider
 ];

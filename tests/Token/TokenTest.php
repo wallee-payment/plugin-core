@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Tests\Token;
 
 use PHPUnit\Framework\TestCase;
-use Wallee\PluginCore\Token\State;
 use Wallee\PluginCore\Token\Token;
+use Wallee\PluginCore\Token\State;
 
 class TokenTest extends TestCase
 {

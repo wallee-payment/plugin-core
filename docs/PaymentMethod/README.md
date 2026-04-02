@@ -1,10 +1,10 @@
 # Payment Method Retrieval
 
-This directory contains documentation and examples for retrieving available payment methods.
+This directory contains documentation and examples for retrieving configured payment methods.
 
 ## Overview
 
-The `PaymentMethod` domain provides a consolidated entity for both retrieving available payment methods (for display) and synchronizing payment method configurations from the portal.
+The `PaymentMethod` domain provides a service for retrieving configured payment methods from the portal.
 
 ## Usage
 

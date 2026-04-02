@@ -5,16 +5,27 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\LineItem;
 
 use Wallee\PluginCore\LineItem\Exception\LineItemConsistencyException;
-use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Settings\Settings;
 
+/**
+ * Ensures mathematical consistency between shop line items and gateway requirements.
+ *
+ * Different shop systems use various rounding strategies (per line item vs. total).
+ * This service reconciles these differences to prevent gateway rejections due to
+ * "Total Mismatch" errors. It also handles edge cases like negative transaction totals
+ * caused by aggressive discounting.
+ */
 class LineItemConsistencyService
 {
     private const ADJUSTMENT_NAME = 'Rounding Adjustment';
     private const ADJUSTMENT_SKU = 'rounding-adjustment';
     private const MAX_ALLOWED_DIFFERENCE = 0.10;
 
+    /**
+     * @param Settings $settings Configuration for rounding strategies and thresholds.
+     * @param LoggerInterface $logger The system logger.
+     */
     public function __construct(
         private readonly Settings $settings,
         private readonly LoggerInterface $logger,
@@ -22,89 +33,49 @@ class LineItemConsistencyService
     }
 
     /**
-     * Calculates the sum of line items using the configured rounding strategy.
+     * Reconciles the sum of line items with the expected grand total.
      *
-     * Differences in calculation often arise between shops and payment gateways
-     * due to when rounding is applied (at the line-item level vs. the grand total).
-     * This method ensures we use the strategy that most closely matches the shop's
-     * internal calculation to minimize rounding adjustments later.
-     *
-     * @param LineItem[] $lineItems The line items to sum.
-     * @return float The calculated total sum, rounded to 2 decimal places.
-     */
-    private function calculateSum(array $lineItems): float
-    {
-        $strategy = $this->settings->getLineItemRoundingStrategy();
-
-        $this->logger->debug("Calculating sum using strategy: " . $strategy->value);
-
-        $sum = 0.0;
-        foreach ($lineItems as $item) {
-            if ($strategy === RoundingStrategyEnum::BY_LINE_ITEM) {
-                // Rounding each line item individually avoids large discrepancies
-                // in shops that calculate tax per item.
-                $sum += round($item->amountIncludingTax, 2);
-            } else {
-                // Using raw totals is preferred for shops that round only at the final sum.
-                $sum += $item->amountIncludingTax;
-            }
-        }
-
-        $result = round($sum, 2);
-        $this->logger->debug("Calculated total: $result");
-
-        return $result;
-    }
-
-
-    /**
-     * Ensures consistency between the shop's expected total and the line item sum.
-     *
-     * Payment gateways require the sum of line items to exactly match the transaction
-     * amount. If a discrepancy exists (usually due to rounding or tax calculation
-     * differences), we add a "Rounding Adjustment" line item.
+     * If a minor discrepancy is found (typically due to rounding), it adds a
+     * "Rounding Adjustment" line item to ensure the gateway receives a perfectly
+     * balanced transaction.
      *
      * @param LineItem[] $lineItems The original line items from the shop.
-     * @param float $expectedTotal The grand total the shop expects the customer to pay.
-     * @param string $currencyCode The currency code (for context, unused for calculation).
-     * @return LineItem[] The list of line items, potentially including an adjustment.
-     * @throws LineItemConsistencyException If the discrepancy is too large to safely auto-correct.
+     * @param float $expectedTotal The grand total calculated by the shop.
+     * @param string $currencyCode The currency of the transaction.
+     * @return LineItem[] The consistent list of line items.
+     * @throws LineItemConsistencyException If the discrepancy is too large to fix safely.
      */
     public function ensureConsistency(array $lineItems, float $expectedTotal, string $currencyCode): array
     {
         $calculatedTotal = $this->calculateSum($lineItems);
         $difference = $expectedTotal - $calculatedTotal;
 
-        // Perfect Match: No action needed.
+        // Exact Match Handling
+        // If the difference is below the float epsilon, we consider it a perfect match.
         if (abs($difference) < 0.000001) {
             return $lineItems;
         }
 
-        $this->logger->debug(sprintf(
-            "Consistency Mismatch Detected: Shop Total: %f, Line Item Sum: %f, Diff: %f",
-            $expectedTotal,
-            $calculatedTotal,
-            $difference,
-        ));
+        $this->logger->debug("Consistency Mismatch Detected: Shop Total: $expectedTotal, Line Item Sum: $calculatedTotal, Diff: $difference");
 
-        // Feature Disabled: We abort to prevent processing a transaction that
-        // the gateway will likely reject due to a total mismatch.
+        // Feature Toggle Check
+        // Some integrations may prefer a hard failure over automatic adjustments.
         if (!$this->settings->isLineItemConsistencyEnabled()) {
-            $msg = sprintf("Mismatch found (%f) but auto-correction is DISABLED.", $difference);
-            $this->logger->warning($msg);
-            throw new LineItemConsistencyException($msg);
+            $this->logger->warning("Mismatch found ($difference) but auto-correction is DISABLED.");
+            throw new LineItemConsistencyException("Mismatch found ($difference) but auto-correction is DISABLED.");
         }
 
-        // Safety Guard: A difference larger than 0.10 (10 cents) usually indicates
-        // a configuration error (e.g., missing tax, wrong currency) rather than
-        // a simple rounding error. Auto-correcting large amounts is risky for accounting.
+        // Safety Threshold Validation
+        // We limit automatic adjustments to a small amount (e.g. 10 cents).
+        // A larger difference usually indicates a genuine calculated bug rather than a rounding issue.
         if (abs($difference) > self::MAX_ALLOWED_DIFFERENCE) {
-            $msg = sprintf("Rounding difference (%f) exceeds safety threshold (%f). Aborting.", $difference, self::MAX_ALLOWED_DIFFERENCE);
-            $this->logger->error($msg);
-            throw new LineItemConsistencyException($msg);
+            $threshold = self::MAX_ALLOWED_DIFFERENCE;
+            $this->logger->error("Rounding difference ($difference) exceeds safety threshold ($threshold). Aborting.");
+            throw new LineItemConsistencyException("Rounding difference ($difference) exceeds safety threshold ($threshold). Aborting.");
         }
 
-        // Fix it: Append a system-generated line item to balance the total.
+        // Rounding Correction
+        // We append a technical fee/discount item to bridge the gap.
         $this->logger->info("Auto-correcting rounding difference of $difference by adding adjustment line item.");
 
         $adjustmentItem = new LineItem();
@@ -122,15 +93,14 @@ class LineItemConsistencyService
     }
 
     /**
-     * Sanitizes negative quantities or discounts to ensure a non-negative total.
+     * Sanitizes discounts to prevent negative transaction totals.
      *
-     * Most payment gateways do not support transactions with a total amount <= 0.
-     * This occurs when discounts exceed the value of the products (e.g. combined gift cards).
-     * We cap the discounts proportionally to keep the total at exactly zero, allowing
-     * the transaction to be created as "Free" in the portal.
+     * Most payment gateways reject transactions with a total < 0. If a shop applies
+     * discounts that exceed the product value, this method proportionally caps the
+     * discount amounts to bring the total exactly to zero.
      *
-     * @param LineItem[] $lineItems
-     * @return LineItem[] The sanitized list (cloned to avoid side effects).
+     * @param LineItem[] $lineItems Original line items.
+     * @return LineItem[] Sanitized items with capped discounts.
      */
     public function sanitizeNegativeLineItems(array $lineItems): array
     {
@@ -144,26 +114,22 @@ class LineItemConsistencyService
             }
         }
 
-        // If total is non-negative (within float epsilon), nothing to do.
+        // Pre-condition: Is the total actually negative?
         if ($totalSum >= -0.00000001) {
             return $lineItems;
         }
 
-        // If no discounts found to heal, we cannot fix the negative total here.
+        // Pre-condition: Are there any discounts to adjust?
         if (abs($discountSum) < 0.00000001) {
             return $lineItems;
         }
 
         $this->logger->warning("Transaction total was negative. Auto-capped discounts to equal product value.");
 
-        /**
-         * The capping factor calculation:
-         * We want NewTotalSum = 0.
-         * NewTotalSum = (TotalSum - DiscountSum) + NewDiscountSum.
-         * 0 = (TotalSum - DiscountSum) + (DiscountSum * Factor).
-         * -(TotalSum - DiscountSum) = DiscountSum * Factor.
-         * Factor = (DiscountSum - TotalSum) / DiscountSum.
-         */
+        // Harmonic Adjustment Factor
+        // We calculate a multiplier to reduce all negative discounts proportionally
+        // until the total sum reaches zero.
+        // Formula: NewDiscountSum = -(TotalSum - DiscountSum)
         $factor = ($discountSum - $totalSum) / $discountSum;
 
         $sanitizedItems = [];
@@ -176,5 +142,33 @@ class LineItemConsistencyService
         }
 
         return $sanitizedItems;
+    }
+
+    /**
+     * Calculates the internal sum of all line items based on configured rounding rules.
+     *
+     * @param LineItem[] $lineItems The items to sum.
+     * @return float The calculated total.
+     */
+    private function calculateSum(array $lineItems): float
+    {
+        $strategy = $this->settings->getLineItemRoundingStrategy();
+
+        $this->logger->debug("Calculating sum using strategy: {$strategy->value}");
+
+        $sum = 0.0;
+        foreach ($lineItems as $item) {
+            // Some shops round each line item price before summing, while others round the final total.
+            if ($strategy === RoundingStrategy::BY_LINE_ITEM) {
+                $sum += round($item->amountIncludingTax, 2);
+            } else {
+                $sum += $item->amountIncludingTax;
+            }
+        }
+
+        $result = round($sum, 2);
+        $this->logger->debug("Calculated total: $result");
+
+        return $result;
     }
 }

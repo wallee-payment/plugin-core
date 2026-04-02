@@ -60,7 +60,7 @@ $context = new RefundContext(
 ```php
 use Wallee\PluginCore\Refund\RefundService;
 use Wallee\PluginCore\Refund\RefundContext;
-use Wallee\PluginCore\Refund\Type;
+use Wallee\PluginCore\Refund\Type as TypeEnum;
 
 // ... instantiate services ...
 
@@ -68,7 +68,7 @@ $context = new RefundContext(
     transactionId: 123,
     amount: 50.00,
     merchantReference: 'refund-ref-1',
-    type: Type::MERCHANT_INITIATED_ONLINE,
+    type: TypeEnum::MERCHANT_INITIATED_ONLINE,
     lineItems: [] // Optional: For partial specific items
 );
 

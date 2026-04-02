@@ -4,40 +4,50 @@ namespace MyPlugin\ExampleCaptureImplementation;
 
 /**
  * Capture Example
- *
+ * 
  * This script demonstrates how to capture an authorized transaction.
- *
+ * 
  * USAGE:
- * php capture.php [transaction_id]
+ * php capture.php [session_file_or_dir] [transaction_id]
+ * 
+ * See src/TransactionIdLoader.php for argument handling details.
  */
-
-use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionCompletionGateway;
-use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
 
 error_reporting(E_ALL & ~E_DEPRECATED);
 
-/** @var array $common */
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionCompletionGateway;
+use Wallee\PluginCore\Settings\Settings;
+use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// Load the transaction ID from command line arguments or environment.
+$sdkProvider = $common['sdkProvider'];
+
+// 2. Load Transaction ID
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
-    exit($e->getMessage());
+    exit(1);
 }
 
-// Setup required services for transaction completion.
+// 3. Setup Services
 $completionGateway = new TransactionCompletionGateway($sdkProvider);
+
 $completionService = new TransactionCompletionService($completionGateway, $logger);
 
 echo "Attempting to Capture Transaction ID: $transactionId\n";
 
-// Execute the capture operation.
+// 4. Execute Capture
 try {
     $completion = $completionService->capture((int)$spaceId, $transactionId);
 

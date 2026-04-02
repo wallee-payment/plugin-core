@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Webhook\Listener;
 
 use Wallee\PluginCore\Webhook\Command\WebhookCommandInterface;
+use Wallee\PluginCore\Webhook\Enum\WebhookName;
 use Wallee\PluginCore\Webhook\WebhookContext;
 
 /**

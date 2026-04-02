@@ -10,6 +10,10 @@ enum State: string
 {
     use ValidatesStateTransitions;
 
+    case OPEN = 'OPEN';
+    case DONE = 'DONE';
+    case EXPIRED = 'EXPIRED';
+
     public static function getTransitionMap(): array
     {
         return [
@@ -32,8 +36,4 @@ enum State: string
             ],
         ];
     }
-    case DONE = 'DONE';
-    case EXPIRED = 'EXPIRED';
-
-    case OPEN = 'OPEN';
 }

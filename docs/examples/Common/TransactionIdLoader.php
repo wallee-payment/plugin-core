@@ -2,6 +2,9 @@
 
 namespace Wallee\PluginCore\Examples\Common;
 
+/**
+ * Helper to determine the Transaction ID from CLI arguments or session files.
+ */
 class TransactionIdLoader
 {
     /**

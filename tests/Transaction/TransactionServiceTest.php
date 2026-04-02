@@ -11,11 +11,12 @@ use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
-use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
+use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting as PaymentMethodSortingEnum;
 use Wallee\PluginCore\Settings\Settings;
-use Wallee\PluginCore\Transaction\State;
 use Wallee\PluginCore\Transaction\Transaction;
+use Wallee\PluginCore\Transaction\State as StateEnum;
 use Wallee\PluginCore\Transaction\TransactionContext;
+use Wallee\PluginCore\Transaction\Exception\TransactionTotalNegativeException;
 use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\TransactionPersistenceInterface;
 use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
@@ -23,12 +24,12 @@ use Wallee\PluginCore\Transaction\TransactionService;
 
 class TransactionServiceTest extends TestCase
 {
-    private MockObject|LineItemConsistencyService $consistencyService;
+    private TransactionService $service;
     private MockObject|TransactionGatewayInterface $gateway;
+    private MockObject|LineItemConsistencyService $consistencyService;
+    private MockObject|Settings $settings;
     private MockObject|LoggerInterface $logger;
     private MockObject|TransactionPersistenceInterface $persistence;
-    private TransactionService $service;
-    private MockObject|Settings $settings;
 
     protected function setUp(): void
     {
@@ -58,7 +59,7 @@ class TransactionServiceTest extends TestCase
 
         $transaction = new Transaction();
         $transaction->id = 100;
-        $transaction->state = State::PENDING;
+        $transaction->state = StateEnum::PENDING;
 
         $this->gateway->expects($this->once())
             ->method('create')
@@ -70,6 +71,203 @@ class TransactionServiceTest extends TestCase
             ->with(100);
 
         $this->service->upsert($context, $this->persistence);
+    }
+
+    public function testUpdateExistingTransactionDoesNotPersist(): void
+    {
+        $context = new TransactionContext();
+        $context->spaceId = 1;
+        $context->transactionId = 123;
+
+        // 1. Mock Find (Return Domain Object)
+        $domainTx = new Transaction();
+        $domainTx->id = 123;
+        $domainTx->version = 5;
+        $domainTx->state = StateEnum::PENDING;
+
+        $this->gateway->expects($this->once())
+            ->method('find')
+            ->willReturn($domainTx);
+
+        // 2. Mock Update (Pass ID 123, Version 5)
+        $updateResult = new Transaction();
+        $updateResult->id = 123;
+        $updateResult->version = 6;
+        $updateResult->state = StateEnum::PENDING;
+
+        $this->gateway->expects($this->once())
+            ->method('update')
+            ->with(123, 5, $context)
+            ->willReturn($updateResult);
+
+        $this->persistence->expects($this->never())->method('persist');
+
+        $result = $this->service->upsert($context, $this->persistence);
+
+        $this->assertEquals(123, $result->id);
+    }
+
+    public function testUpdateFailureFallsBackToCreate(): void
+    {
+        // 1. Setup a FULLY valid Context
+        $context = new TransactionContext();
+        $context->spaceId = 1;
+        $context->transactionId = 123;
+        $context->merchantReference = 'TEST-FALLBACK';
+        $context->expectedGrandTotal = 100.00;
+        $context->currencyCode = 'CHF';
+        $context->language = 'en-US';
+        $context->customerId = 'TEST-CUST-1';
+        $context->lineItems = [];
+        $context->successUrl = 'https://example.com/success';
+        $context->failedUrl = 'https://example.com/fail';
+
+        $context->billingAddress = new Address();
+        $context->billingAddress->givenName = 'Test';
+        $context->billingAddress->familyName = 'User';
+
+        // 2. Mock Find
+        $domainTx = new Transaction();
+        $domainTx->id = 123;
+        $domainTx->version = 1;
+        $domainTx->state = StateEnum::PENDING;
+
+        $this->gateway->expects($this->once())
+            ->method('find')
+            ->with(1, 123)
+            ->willReturn($domainTx);
+
+        // 3. Mock Update (FAILURE)
+        $this->gateway->expects($this->once())
+            ->method('update')
+            ->with(123, 1, $context)
+            ->willThrowException(new \Exception("Update failed"));
+
+        // 4. Mock Create (Fallback)
+        $fallbackResult = new Transaction();
+        $fallbackResult->id = 999;
+        $fallbackResult->state = StateEnum::PENDING;
+
+        $this->gateway->expects($this->once())
+            ->method('create')
+            ->with($context)
+            ->willReturn($fallbackResult);
+
+        // 5. Expect Persistence (New ID)
+        $this->persistence->expects($this->once())
+            ->method('persist')
+            ->with(999);
+
+        // Execute
+        $result = $this->service->upsert($context, $this->persistence);
+
+        // Assert
+        $this->assertEquals(999, $result->id);
+    }
+
+    public function testGetTransactionDelegatesToGateway(): void
+    {
+        $spaceId = 1;
+        $txId = 999;
+        $expectedTx = new Transaction();
+
+        $this->gateway->expects($this->once())
+            ->method('get')
+            ->with($spaceId, $txId)
+            ->willReturn($expectedTx);
+
+        $this->assertSame($expectedTx, $this->service->getTransaction($spaceId, $txId));
+    }
+
+    public function testGetPaymentUrlDelegatesToGateway(): void
+    {
+        $spaceId = 1;
+        $txId = 999;
+        $url = "http://example.com";
+
+        $this->gateway->expects($this->once())
+            ->method('getPaymentUrl')
+            ->with($spaceId, $txId)
+            ->willReturn($url);
+
+        $this->assertSame($url, $this->service->getPaymentUrl($spaceId, $txId));
+    }
+
+    public function testGetAvailablePaymentMethodsSortsByName(): void
+    {
+        $spaceId = 123;
+        $transactionId = 456;
+
+        $methodA = new PaymentMethod(
+            id: 1,
+            spaceId: $spaceId,
+            state: 'active',
+            name: 'Zeus Payment',
+            title: ['en-US' => 'Zeus Payment'],
+            description: 'Desc',
+            descriptionMap: ['en-US' => 'Desc'],
+            sortOrder: 1,
+            imageUrl: null,
+        );
+
+        $methodB = new PaymentMethod(
+            id: 2,
+            spaceId: $spaceId,
+            state: 'active',
+            name: 'Apollo Payment',
+            title: ['en-US' => 'Apollo Payment'],
+            description: 'Desc',
+            descriptionMap: ['en-US' => 'Desc'],
+            sortOrder: 1,
+            imageUrl: null,
+        );
+
+        // Gateway returns unsorted (Z then A)
+        $this->gateway->method('getAvailablePaymentMethods')
+            ->willReturn([$methodA, $methodB]);
+
+        // 1. Default (No Sort)
+        $default = $this->service->getAvailablePaymentMethods($spaceId, $transactionId, PaymentMethodSortingEnum::DEFAULT);
+        $this->assertSame($methodA, $default[0]); // Z
+        $this->assertSame($methodB, $default[1]); // A
+
+        // 2. Sorted by Name
+        $sorted = $this->service->getAvailablePaymentMethods($spaceId, $transactionId, PaymentMethodSortingEnum::NAME);
+        $this->assertSame($methodB, $sorted[0]); // A
+        $this->assertSame($methodA, $sorted[1]); // Z
+    }
+    public function testSearchTransactionsDelegatesToGateway(): void
+    {
+        $spaceId = 123;
+        $criteria = new TransactionSearchCriteria();
+        $expectedResults = [new Transaction()];
+
+        $this->gateway->expects($this->once())
+            ->method('search')
+            ->with($spaceId, $criteria)
+            ->willReturn($expectedResults);
+
+        $this->assertSame($expectedResults, $this->service->searchTransactions($spaceId, $criteria));
+    }
+
+    public function testGetLatestTransactionsDelegatesToGatewayWithDefaults(): void
+    {
+        $spaceId = 123;
+        $limit = 5;
+        $expectedResults = [new Transaction()];
+
+        $this->gateway->expects($this->once())
+            ->method('search')
+            ->with($this->callback(function (int $argSpaceId) use ($spaceId) {
+                return $argSpaceId === $spaceId;
+            }), $this->callback(function (TransactionSearchCriteria $argCriteria) use ($limit) {
+                return $argCriteria->limit === $limit
+                    && $argCriteria->sortField === 'id'
+                    && $argCriteria->sortOrder === 'DESC';
+            }))
+            ->willReturn($expectedResults);
+
+        $this->assertSame($expectedResults, $this->service->getLatestTransactions($spaceId, $limit));
     }
 
     public function testCreateTransactionAllowsZeroTotal(): void
@@ -87,7 +285,7 @@ class TransactionServiceTest extends TestCase
         // Expect delegating to gateway instead of throwing exception
         $expectedTx = new Transaction();
         $expectedTx->id = 100;
-        $expectedTx->state = State::PENDING;
+        $expectedTx->state = StateEnum::PENDING;
 
         $this->gateway->expects($this->once())
             ->method('create')
@@ -136,7 +334,7 @@ class TransactionServiceTest extends TestCase
 
         $transaction = new Transaction();
         $transaction->id = 777;
-        $transaction->state = State::PENDING;
+        $transaction->state = StateEnum::PENDING;
 
         $this->gateway->expects($this->once())
             ->method('create')
@@ -147,208 +345,6 @@ class TransactionServiceTest extends TestCase
         $this->assertEquals(777, $result->id);
         $this->assertEquals(0.00, $context->expectedGrandTotal);
         $this->assertEquals(-100.00, $context->lineItems[1]->amountIncludingTax);
-    }
-
-    public function testGetAvailablePaymentMethodsSortsByName(): void
-    {
-        $spaceId = 123;
-        $transactionId = 456;
-
-        $methodA = new PaymentMethod(
-            id: 1,
-            spaceId: $spaceId,
-            state: 'active',
-            name: 'Zeus Payment',
-            title: ['en-US' => 'Zeus Payment'],
-            description: 'Desc',
-            descriptionMap: ['en-US' => 'Desc'],
-            sortOrder: 1,
-            imageUrl: null,
-        );
-
-        $methodB = new PaymentMethod(
-            id: 2,
-            spaceId: $spaceId,
-            state: 'active',
-            name: 'Apollo Payment',
-            title: ['en-US' => 'Apollo Payment'],
-            description: 'Desc',
-            descriptionMap: ['en-US' => 'Desc'],
-            sortOrder: 1,
-            imageUrl: null,
-        );
-
-        // Gateway returns unsorted (Z then A)
-        $this->gateway->method('getAvailablePaymentMethods')
-            ->willReturn([$methodA, $methodB]);
-
-        // 1. Default (No Sort)
-        $default = $this->service->getAvailablePaymentMethods($spaceId, $transactionId, PaymentMethodSorting::DEFAULT);
-        $this->assertSame($methodA, $default[0]); // Z
-        $this->assertSame($methodB, $default[1]); // A
-
-        // 2. Sorted by Name
-        $sorted = $this->service->getAvailablePaymentMethods($spaceId, $transactionId, PaymentMethodSorting::NAME);
-        $this->assertSame($methodB, $sorted[0]); // A
-        $this->assertSame($methodA, $sorted[1]); // Z
-    }
-
-    public function testGetLatestTransactionsDelegatesToGatewayWithDefaults(): void
-    {
-        $spaceId = 123;
-        $limit = 5;
-        $tx = new Transaction();
-        $tx->state = State::PENDING;
-        $expectedResults = [$tx];
-
-        $this->gateway->expects($this->once())
-            ->method('search')
-            ->with($this->callback(function (int $argSpaceId) use ($spaceId) {
-                return $argSpaceId === $spaceId;
-            }), $this->callback(function (TransactionSearchCriteria $argCriteria) use ($limit) {
-                return $argCriteria->limit === $limit
-                    && $argCriteria->sortField === 'id'
-                    && $argCriteria->sortOrder === 'DESC';
-            }))
-            ->willReturn($expectedResults);
-
-        $this->assertSame($expectedResults, $this->service->getLatestTransactions($spaceId, $limit));
-    }
-
-    public function testGetPaymentUrlDelegatesToGateway(): void
-    {
-        $spaceId = 1;
-        $txId = 999;
-        $url = "http://example.com";
-
-        $this->gateway->expects($this->once())
-            ->method('getPaymentUrl')
-            ->with($spaceId, $txId)
-            ->willReturn($url);
-
-        $this->assertSame($url, $this->service->getPaymentUrl($spaceId, $txId));
-    }
-
-    public function testGetTransactionDelegatesToGateway(): void
-    {
-        $spaceId = 1;
-        $txId = 999;
-        $expectedTx = new Transaction();
-        $expectedTx->state = State::PENDING;
-
-        $this->gateway->expects($this->once())
-            ->method('get')
-            ->with($spaceId, $txId)
-            ->willReturn($expectedTx);
-
-        $this->assertSame($expectedTx, $this->service->getTransaction($spaceId, $txId));
-    }
-    public function testSearchTransactionsDelegatesToGateway(): void
-    {
-        $spaceId = 123;
-        $criteria = new TransactionSearchCriteria();
-        $tx = new Transaction();
-        $tx->state = State::PENDING;
-        $expectedResults = [$tx];
-
-        $this->gateway->expects($this->once())
-            ->method('search')
-            ->with($spaceId, $criteria)
-            ->willReturn($expectedResults);
-
-        $this->assertSame($expectedResults, $this->service->searchTransactions($spaceId, $criteria));
-    }
-
-    public function testUpdateExistingTransactionDoesNotPersist(): void
-    {
-        $context = new TransactionContext();
-        $context->spaceId = 1;
-        $context->transactionId = 123;
-
-        // 1. Mock Find (Return Domain Object)
-        $domainTx = new Transaction();
-        $domainTx->id = 123;
-        $domainTx->version = 5;
-        $domainTx->state = State::PENDING;
-
-        $this->gateway->expects($this->once())
-            ->method('find')
-            ->willReturn($domainTx);
-
-        // 2. Mock Update (Pass ID 123, Version 5)
-        $updateResult = new Transaction();
-        $updateResult->id = 123;
-        $updateResult->version = 6;
-        $updateResult->state = State::PENDING;
-
-        $this->gateway->expects($this->once())
-            ->method('update')
-            ->with(123, 5, $context)
-            ->willReturn($updateResult);
-
-        $this->persistence->expects($this->never())->method('persist');
-
-        $result = $this->service->upsert($context, $this->persistence);
-
-        $this->assertEquals(123, $result->id);
-    }
-
-    public function testUpdateFailureFallsBackToCreate(): void
-    {
-        // 1. Setup a FULLY valid Context
-        $context = new TransactionContext();
-        $context->spaceId = 1;
-        $context->transactionId = 123;
-        $context->merchantReference = 'TEST-FALLBACK';
-        $context->expectedGrandTotal = 100.00;
-        $context->currencyCode = 'CHF';
-        $context->language = 'en-US';
-        $context->customerId = 'TEST-CUST-1';
-        $context->lineItems = [];
-        $context->successUrl = 'https://example.com/success';
-        $context->failedUrl = 'https://example.com/fail';
-
-        $context->billingAddress = new Address();
-        $context->billingAddress->givenName = 'Test';
-        $context->billingAddress->familyName = 'User';
-
-        // 2. Mock Find
-        $domainTx = new Transaction();
-        $domainTx->id = 123;
-        $domainTx->version = 1;
-        $domainTx->state = State::PENDING;
-
-        $this->gateway->expects($this->once())
-            ->method('find')
-            ->with(1, 123)
-            ->willReturn($domainTx);
-
-        // 3. Mock Update (FAILURE)
-        $this->gateway->expects($this->once())
-            ->method('update')
-            ->with(123, 1, $context)
-            ->willThrowException(new \Exception("Update failed"));
-
-        // 4. Mock Create (Fallback)
-        $fallbackResult = new Transaction();
-        $fallbackResult->id = 999;
-        $fallbackResult->state = State::PENDING;
-
-        $this->gateway->expects($this->once())
-            ->method('create')
-            ->with($context)
-            ->willReturn($fallbackResult);
-
-        // 5. Expect Persistence (New ID)
-        $this->persistence->expects($this->once())
-            ->method('persist')
-            ->with(999);
-
-        // Execute
-        $result = $this->service->upsert($context, $this->persistence);
-
-        // Assert
-        $this->assertEquals(999, $result->id);
     }
 
     public function testUpsertWithNegativeTotalAutoFix(): void
@@ -371,7 +367,7 @@ class TransactionServiceTest extends TestCase
         $existing = new Transaction();
         $existing->id = 123;
         $existing->version = 1;
-        $existing->state = State::PENDING;
+        $existing->state = StateEnum::PENDING;
 
         $this->gateway->method('find')->willReturn($existing);
 

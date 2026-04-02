@@ -16,14 +16,12 @@ Instead of duplicating complex logic across different shop systems, `plugin-core
 * **Shop Plugin:** Acts as an **adapter**. It interchanges data between the shop and the Core, handles database persistence, manages configuration, and integrates into the shop's frontend/backend events.
 
 ### Key Architectural Benefits
-
 * **Pure PHP:** Framework-agnostic code that runs anywhere PHP runs.
 * **Minimal Dependencies:** Depends only on the official `wallee/php-sdk`, making it lightweight and easy to port to any environment.
 * **Type Safety:** Written with strict typing to catch errors early.
 * **Testability:** Designed for 100% unit test coverage with isolated components.
 * **PSR Standards:** Fully compliant with PSR-3 (Logging) and other standard interfaces.
 * **Contract-Driven:** Clear Interfaces and Abstract Base Classes guide developers to implement the necessary platform-specific adapters correctly.
-
 ---
 
 ## Key Features
@@ -104,7 +102,6 @@ composer require wallee/plugin-core
 ---
 
 ## Unit Tests
-
 You can run the test suite to verify the library's behavior.
 
 ```bash
@@ -112,5 +109,4 @@ composer test
 ```
 
 ## License
-
-Apache License. See [LICENSE.txt].
+[License Information Here]

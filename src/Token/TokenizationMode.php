@@ -13,10 +13,6 @@ namespace Wallee\PluginCore\Token;
 enum TokenizationMode: string
 {
     /**
-     * Allows one-click payment if the customer opts in.
-     */
-    case ALLOW_ONE_CLICK_PAYMENT = 'ALLOW_ONE_CLICK_PAYMENT';
-    /**
      * Forces the creation of a new token during payment.
      * Use this when you need to store payment credentials for future
      * recurring (MIT) charges.
@@ -32,4 +28,9 @@ enum TokenizationMode: string
      * Forces the update of an existing token's payment credentials.
      */
     case FORCE_UPDATE = 'FORCE_UPDATE';
+
+    /**
+     * Allows one-click payment if the customer opts in.
+     */
+    case ALLOW_ONE_CLICK_PAYMENT = 'ALLOW_ONE_CLICK_PAYMENT';
 }

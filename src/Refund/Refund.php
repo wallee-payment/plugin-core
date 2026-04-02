@@ -14,19 +14,14 @@ class Refund
     use JsonStringableTrait;
 
     /**
-     * @var float
-     */
-    public float $amount;
-
-    /**
-     * @var string
-     */
-    public string $externalId;
-
-    /**
      * @var int
      */
     public int $id;
+
+    /**
+     * @var float
+     */
+    public float $amount;
 
     /**
      * @var State
@@ -37,4 +32,9 @@ class Refund
      * @var int
      */
     public int $transactionId;
+
+    /**
+     * @var string
+     */
+    public string $externalId;
 }

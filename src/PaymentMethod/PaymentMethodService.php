@@ -72,10 +72,10 @@ class PaymentMethodService
         $this->logger->debug("Starting payment method synchronization for Space $spaceId.");
 
         try {
-            // Fetch all payment method configurations from the gateway.
+            // Retrieve the latest configurations from the Gateway.
             $configurations = $this->gateway->fetchBySpaceId($spaceId);
 
-            // Synchronize the fetched configurations to the local repository.
+            // Sync the fetched configurations to the local repository.
             $this->repository->sync($spaceId, $configurations);
 
             $this->logger->debug(sprintf("Synchronized %d payment methods.", count($configurations)));

@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\LineItem\Exception\LineItemConsistencyException;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\LineItem\RoundingStrategy;
+use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Settings\SettingsProviderInterface;
@@ -17,7 +17,7 @@ class LineItemConsistencyServiceTest extends TestCase
 {
     private function createService(
         bool $enabled = true,
-        RoundingStrategy $strategy = RoundingStrategy::BY_LINE_ITEM,
+        RoundingStrategyEnum $strategy = RoundingStrategyEnum::BY_LINE_ITEM,
     ): LineItemConsistencyService {
         $provider = $this->createMock(SettingsProviderInterface::class);
         $provider->method('getLineItemConsistencyEnabled')->willReturn($enabled);
@@ -31,30 +31,42 @@ class LineItemConsistencyServiceTest extends TestCase
         return new LineItemConsistencyService($settings, $logger);
     }
 
-    public function testDisabledConsistencyThrowsExceptionOnMismatch(): void
-    {
-        $service = $this->createService(false);
-
-        $item = new LineItem();
-        $item->amountIncludingTax = 9.99;
-
-        $this->expectException(LineItemConsistencyException::class);
-
-        $service->ensureConsistency([$item], 10.00, 'CHF');
-    }
-
-    public function testLargeDiscrepancyThrowsException(): void
+    public function testPerfectMatchNeedsNoAdjustment(): void
     {
         $service = $this->createService();
 
         $item = new LineItem();
-        $item->amountIncludingTax = 5.00;
+        $item->uniqueId = '1';
+        $item->sku = 'SKU1';
+        $item->name = 'Product';
+        $item->quantity = 1;
+        $item->amountIncludingTax = 10.00;
 
-        $this->expectException(LineItemConsistencyException::class);
+        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
 
-        $this->expectExceptionMessage('exceeds safety threshold');
+        $this->assertCount(1, $result);
+    }
 
-        $service->ensureConsistency([$item], 10.00, 'CHF');
+    public function testSmallDiscrepancyAddsAdjustment(): void
+    {
+        $service = $this->createService();
+
+        $item = new LineItem();
+        $item->uniqueId = '1';
+        $item->sku = 'SKU1';
+        $item->name = 'Product';
+        $item->quantity = 1;
+        $item->amountIncludingTax = 9.98;
+
+        // Expected 10.00, but item is 9.98 (Difference: 0.02)
+        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
+
+        $this->assertCount(2, $result);
+
+        $adjustment = end($result);
+        $this->assertEquals('rounding-adjustment', $adjustment->sku);
+        $this->assertEquals(0.02, $adjustment->amountIncludingTax);
+        $this->assertEquals(LineItem::TYPE_FEE, $adjustment->type);
     }
 
     public function testNegativeAdjustment(): void
@@ -71,20 +83,43 @@ class LineItemConsistencyServiceTest extends TestCase
         $adjustment = end($result);
         $this->assertEquals(-0.02, $adjustment->amountIncludingTax);
     }
-    public function testPerfectMatchNeedsNoAdjustment(): void
+
+    public function testLargeDiscrepancyThrowsException(): void
     {
         $service = $this->createService();
 
         $item = new LineItem();
-        $item->uniqueId = '1';
-        $item->sku = 'SKU1';
-        $item->name = 'Product';
-        $item->quantity = 1;
-        $item->amountIncludingTax = 10.00;
+        $item->amountIncludingTax = 5.00;
 
-        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
+        $this->expectException(LineItemConsistencyException::class);
 
-        $this->assertCount(1, $result);
+        $this->expectExceptionMessage('exceeds safety threshold');
+
+        $service->ensureConsistency([$item], 10.00, 'CHF');
+    }
+
+    public function testDisabledConsistencyThrowsExceptionOnMismatch(): void
+    {
+        $service = $this->createService(false);
+
+        $item = new LineItem();
+        $item->amountIncludingTax = 9.99;
+
+        $this->expectException(LineItemConsistencyException::class);
+
+        $service->ensureConsistency([$item], 10.00, 'CHF');
+    }
+
+
+    public function testSanitizeNegativeLineItemsNoChangeForPositiveSum(): void
+    {
+        $service = $this->createService();
+        $item = new LineItem();
+        $item->amountIncludingTax = 100.00;
+        $item->type = LineItem::TYPE_PRODUCT;
+
+        $result = $service->sanitizeNegativeLineItems([$item]);
+        $this->assertEquals(100.00, $result[0]->amountIncludingTax);
     }
 
     public function testSanitizeNegativeLineItemsAdjustsDiscount(): void
@@ -130,18 +165,6 @@ class LineItemConsistencyServiceTest extends TestCase
         $this->assertEquals(-50.00, $result[2]->amountIncludingTax);
     }
 
-
-    public function testSanitizeNegativeLineItemsNoChangeForPositiveSum(): void
-    {
-        $service = $this->createService();
-        $item = new LineItem();
-        $item->amountIncludingTax = 100.00;
-        $item->type = LineItem::TYPE_PRODUCT;
-
-        $result = $service->sanitizeNegativeLineItems([$item]);
-        $this->assertEquals(100.00, $result[0]->amountIncludingTax);
-    }
-
     public function testSanitizeNegativeLineItemsOnlyAdjustsDiscountType(): void
     {
         $service = $this->createService();
@@ -171,27 +194,5 @@ class LineItemConsistencyServiceTest extends TestCase
         $result = $service->sanitizeNegativeLineItems([$item1]);
 
         $this->assertEquals(0.00, $result[0]->amountIncludingTax);
-    }
-
-    public function testSmallDiscrepancyAddsAdjustment(): void
-    {
-        $service = $this->createService();
-
-        $item = new LineItem();
-        $item->uniqueId = '1';
-        $item->sku = 'SKU1';
-        $item->name = 'Product';
-        $item->quantity = 1;
-        $item->amountIncludingTax = 9.98;
-
-        // Expected 10.00, but item is 9.98 (Difference: 0.02)
-        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
-
-        $this->assertCount(2, $result);
-
-        $adjustment = end($result);
-        $this->assertEquals('rounding-adjustment', $adjustment->sku);
-        $this->assertEquals(0.02, $adjustment->amountIncludingTax);
-        $this->assertEquals(LineItem::TYPE_FEE, $adjustment->type);
     }
 }

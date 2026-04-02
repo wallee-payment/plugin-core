@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Tests\Transaction;
 
 use PHPUnit\Framework\TestCase;
-use Wallee\PluginCore\Transaction\State;
 use Wallee\PluginCore\Transaction\Transaction;
+use Wallee\PluginCore\Transaction\State;
 
 class TransactionTest extends TestCase
 {

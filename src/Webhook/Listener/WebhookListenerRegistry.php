@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Webhook\Listener;
 
-use Wallee\PluginCore\Webhook\Enum\WebhookListener as WebhookListenerEnum;
+use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 
 /**
  * A registry that holds and finds webhook listeners.
@@ -22,11 +22,11 @@ class WebhookListenerRegistry
     /**
      * Registers a listener for a specific webhook name and state.
      *
-     * @param WebhookListenerEnum $name The name of the webhook (e.g., WebhookName::Transaction).
+     * @param WebhookListener $name The name of the webhook (e.g., WebhookName::Transaction).
      * @param string $state The state of the webhook (e.g., 'COMPLETED').
      * @param WebhookListenerInterface $listener The listener instance to handle this event.
      */
-    public function addListener(WebhookListenerEnum $name, string $state, WebhookListenerInterface $listener): void
+    public function addListener(WebhookListener $name, string $state, WebhookListenerInterface $listener): void
     {
         $this->listeners[$name->value][$state] = $listener;
     }
@@ -34,13 +34,25 @@ class WebhookListenerRegistry
     /**
      * Finds the specific listener that supports the given webhook criteria.
      *
-     * @param WebhookListenerEnum $name The name of the webhook.
+     * @param WebhookListener $name The name of the webhook.
      * @param string $state The state of the webhook.
      * @return WebhookListenerInterface|null The matching listener, or null if none is found.
      */
-    public function findListener(WebhookListenerEnum $name, string $state): ?WebhookListenerInterface
+    public function findListener(WebhookListener $name, string $state): ?WebhookListenerInterface
     {
         return $this->listeners[$name->value][$state] ?? null;
+    }
+
+    /**
+     * Checks if a webhook listener with the given name and state exists in the registry.
+     *
+     * @param WebhookListener $name The webhook listener instance to check for.
+     * @param string $state The state associated with the listener.
+     * @return bool Returns true if the listener with the specified state exists, false otherwise.
+     */
+    public function hasListener(WebhookListener $name, string $state): bool
+    {
+        return isset($this->listeners[$name->value][$state]);
     }
 
     /**
@@ -51,17 +63,5 @@ class WebhookListenerRegistry
     public function getAllListeners(): array
     {
         return $this->listeners;
-    }
-
-    /**
-     * Checks if a webhook listener with the given name and state exists in the registry.
-     *
-     * @param WebhookListenerEnum $name The webhook listener instance to check for.
-     * @param string $state The state associated with the listener.
-     * @return bool Returns true if the listener with the specified state exists, false otherwise.
-     */
-    public function hasListener(WebhookListenerEnum $name, string $state): bool
-    {
-        return isset($this->listeners[$name->value][$state]);
     }
 }

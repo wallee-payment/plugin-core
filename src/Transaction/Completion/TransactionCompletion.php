@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Transaction\Completion;
 
-use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\Render\JsonStringableTrait;
 
 /**
@@ -22,11 +21,6 @@ class TransactionCompletion
     public int $id;
 
     /**
-     * @var array<LineItem>|null The line items to capture (null for full capture).
-     */
-    public ?array $lineItems = null;
-
-    /**
      * @var int The ID of the transaction being captured.
      */
     public int $linkedTransactionId;
@@ -35,4 +29,9 @@ class TransactionCompletion
      * @var State The completion state.
      */
     public State $state;
+
+    /**
+     * @var list<mixed>|null The line items to capture (null for full capture).
+     */
+    public ?array $lineItems = null;
 }

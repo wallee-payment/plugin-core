@@ -6,23 +6,23 @@ namespace Wallee\PluginCore\Tests\Transaction;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\Log\LoggerInterface;
-use Wallee\PluginCore\Token\Token;
-use Wallee\PluginCore\Token\TokenService;
 use Wallee\PluginCore\Transaction\RecurringTransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\RecurringTransactionService;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionService;
+use Wallee\PluginCore\Token\TokenService;
+use Wallee\PluginCore\Token\Token;
+use Wallee\PluginCore\Address\Address;
 
 class RecurringTransactionServiceTest extends TestCase
 {
-    private MockObject|RecurringTransactionGatewayInterface $gateway;
-    private MockObject|LoggerInterface $logger;
     private RecurringTransactionService $service;
-    private MockObject|TokenService $tokenService;
     private MockObject|TransactionService $transactionService;
+    private MockObject|RecurringTransactionGatewayInterface $gateway;
+    private MockObject|TokenService $tokenService;
+    private MockObject|LoggerInterface $logger;
 
     protected function setUp(): void
     {
@@ -93,11 +93,15 @@ class RecurringTransactionServiceTest extends TestCase
         $this->assertSame($newTransaction, $result);
     }
 
-    public function testProcessRecurringPaymentCreatesTokenIfMissing(): void
+    /**
+     * Verifies that a clear RuntimeException is thrown when the original
+     * transaction has no token. Recurring payments require the original
+     * transaction to have been created with tokenizationMode = FORCE_CREATION.
+     */
+    public function testProcessRecurringPaymentThrowsWhenTokenMissing(): void
     {
         $spaceId = 123;
         $transactionId = 456;
-        $newTransactionId = 789;
 
         $originalTransaction = new Transaction();
         $originalTransaction->id = $transactionId;
@@ -106,45 +110,31 @@ class RecurringTransactionServiceTest extends TestCase
         $originalTransaction->customerId = 'CUST-001';
         $originalTransaction->currency = 'USD';
 
-        // No token initially
+        // No token — simulates a transaction created without tokenizationMode
         $originalTransaction->token = null;
 
         $address = new Address();
         $address->city = 'City';
         $originalTransaction->billingAddress = $address;
 
-        $newToken = new Token();
-        $newToken->id = 777;
-
-        $newTransaction = new Transaction();
-        $newTransaction->id = $newTransactionId;
-        $newTransaction->spaceId = $spaceId;
-
         $this->transactionService->expects($this->once())
             ->method('getTransaction')
             ->with($spaceId, $transactionId)
             ->willReturn($originalTransaction);
 
-        $this->tokenService->expects($this->once())
-            ->method('createTokenForTransaction')
-            ->with($spaceId, $transactionId)
-            ->willReturn($newToken);
+        // No token creation, no transaction creation, no gateway call
+        $this->tokenService->expects($this->never())
+            ->method('createTokenForTransaction');
 
-        $this->transactionService->expects($this->once())
-            ->method('createTransaction')
-            ->with($this->callback(function (TransactionContext $context) use ($spaceId, $newToken) {
-                return $context->spaceId === $spaceId
-                    && $context->token === $newToken;
-            }))
-            ->willReturn($newTransaction);
+        $this->transactionService->expects($this->never())
+            ->method('createTransaction');
 
-        $this->gateway->expects($this->once())
-            ->method('processRecurringPayment')
-            ->with($spaceId, $newTransactionId)
-            ->willReturn($newTransaction);
+        $this->gateway->expects($this->never())
+            ->method('processRecurringPayment');
 
-        $result = $this->service->processRecurringPayment($spaceId, $transactionId);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('tokenizationMode = FORCE_CREATION');
 
-        $this->assertSame($newTransaction, $result);
+        $this->service->processRecurringPayment($spaceId, $transactionId);
     }
 }

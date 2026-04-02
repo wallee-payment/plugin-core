@@ -10,6 +10,17 @@ enum State: string
 {
     use ValidatesStateTransitions;
 
+    case CREATE = 'CREATE';
+    case PENDING = 'PENDING';
+    case CONFIRMED = 'CONFIRMED';
+    case PROCESSING = 'PROCESSING';
+    case FAILED = 'FAILED';
+    case AUTHORIZED = 'AUTHORIZED';
+    case VOIDED = 'VOIDED';
+    case COMPLETED = 'COMPLETED';
+    case FULFILL = 'FULFILL';
+    case DECLINE = 'DECLINE';
+
     public static function getTransitionMap(): array
     {
         return [
@@ -45,15 +56,4 @@ enum State: string
             ],
         ];
     }
-    case AUTHORIZED = 'AUTHORIZED';
-    case COMPLETED = 'COMPLETED';
-    case CONFIRMED = 'CONFIRMED';
-
-    case CREATE = 'CREATE';
-    case DECLINE = 'DECLINE';
-    case FAILED = 'FAILED';
-    case FULFILL = 'FULFILL';
-    case PENDING = 'PENDING';
-    case PROCESSING = 'PROCESSING';
-    case VOIDED = 'VOIDED';
 }

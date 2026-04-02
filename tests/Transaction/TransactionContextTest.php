@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Tests\Transaction;
 
 use PHPUnit\Framework\TestCase;
-use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\Transaction\TransactionContext;
+use Wallee\PluginCore\Address\Address;
 
 class TransactionContextTest extends TestCase
 {

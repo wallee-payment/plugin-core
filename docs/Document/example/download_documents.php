@@ -6,42 +6,49 @@ namespace Wallee\Example;
  * Document Retrieval Example
  *
  * This script demonstrates how to retrieve:
- * - Invoice PDF
- * - Packing Slip PDF
- * - Refund Credit Note PDF (if a refund exists)
+ * 1. Invoice PDF
+ * 2. Packing Slip PDF
+ * 3. Refund Credit Note PDF (if a refund exists)
  *
  * USAGE:
- * php download_documents.php [transaction_id]
+ * php download_documents.php [session_file_or_dir] [transaction_id]
  */
-
-use Wallee\PluginCore\Document\DocumentService;
-use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\Refund\RefundService;
-use Wallee\PluginCore\Sdk\SdkV1\DocumentGateway;
-use Wallee\PluginCore\Sdk\SdkV1\RefundGateway;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
-use Wallee\PluginCore\Transaction\TransactionService;
 
 error_reporting(E_ALL & ~E_DEPRECATED);
 
-/** @var array $common */
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
+use Wallee\PluginCore\Document\DocumentService;
+use Wallee\PluginCore\LineItem\LineItemConsistencyService;
+use Wallee\PluginCore\Refund\RefundService;
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SdkV2\DocumentGateway;
+use Wallee\PluginCore\Sdk\SdkV2\RefundGateway;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Settings\Settings;
+use Wallee\PluginCore\Transaction\TransactionService;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// Load the transaction ID from command line arguments or environment.
+$sdkProvider = $common['sdkProvider'];
+
+// 2. Load Transaction ID
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
-    exit($e->getMessage());
+    exit(1);
 }
 
 echo "Operating on Transaction ID: $transactionId\n";
 
-// Setup the required document and transaction services.
+// 3. Setup Services
 $documentGateway = new DocumentGateway($sdkProvider, $logger);
 $documentService = new DocumentService($documentGateway);
 
@@ -50,6 +57,7 @@ function determineDownloadDirectory(): string
 {
     $home = getenv('HOME');
     if (!$home) {
+        // Fallback for non-UNIX or if HOME not set
         return getcwd();
     }
 
@@ -92,7 +100,7 @@ function saveDocument(string $name, string $data, string $mimeType, string $dire
     echo "Saved $name to: " . $filename . "\n";
 }
 
-// Retrieve and save the invoice document for the transaction.
+// 4. Retrieve Invoice
 try {
     echo "\n--- Fetching Invoice ---\n";
     $invoice = $documentService->getInvoice((int)$spaceId, (int)$transactionId);
@@ -102,7 +110,7 @@ try {
     echo "FAILED to get Invoice: " . $e->getMessage() . "\n";
 }
 
-// Retrieve and save the packing slip document for the transaction.
+// 5. Retrieve Packing Slip
 try {
     echo "\n--- Fetching Packing Slip ---\n";
     $packingSlip = $documentService->getPackingSlip((int)$spaceId, (int)$transactionId);
@@ -112,11 +120,12 @@ try {
     echo "FAILED to get Packing Slip: " . $e->getMessage() . "\n";
 }
 
-// Retrieve and save the refund credit note if any refunds have been processed.
+// 6. Retrieve Refund Credit Note
+// We first need to find if there are any refunds for this transaction.
 try {
     echo "\n--- Fetching Refund Credit Note ---\n";
 
-    // Initialize services required for RefundService finding
+    // Initialize services required for RefundService
     $transactionGateway = new TransactionGateway($sdkProvider, $logger, $settings);
     $consistencyService = new LineItemConsistencyService($settings, $logger);
     $transactionService = new TransactionService($transactionGateway, $consistencyService, $logger);

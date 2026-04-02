@@ -16,7 +16,7 @@ The Checkout Engine follows a **Hexagonal (Ports & Adapters)** style architectur
 2.  **TransactionGateway (Infrastructure / ACL):**
     * **Role:** The Anti-Corruption Layer.
     * **Responsibility:** Translates internal domain objects (`TransactionContext`) into SDK-specific models (`TransactionCreate`) and communicates with the Wallee API.
-    * **Benefit:** This isolates the core logic from specific SDK versions.
+    * **Benefit:** This isolates the core logic from specific SDK versions. To support SDK v2, we simply swap the Gateway implementation.
 
 3.  **TransactionPersistenceInterface (Port):**
     * **Role:** A contract the host application must implement.

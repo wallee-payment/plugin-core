@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Settings;
 
 use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
+use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
 
 /**
  * Provides access to validated configuration settings.
@@ -22,66 +23,6 @@ class Settings
     public function __construct(
         private readonly SettingsProviderInterface $provider,
     ) {
-    }
-
-    public function getApiKey(): string
-    {
-        $value = $this->provider->getApiKey();
-        if (empty($value)) {
-            throw new \InvalidArgumentException('Wallee API Key is missing or invalid.');
-        }
-        return (string) $value;
-    }
-
-    /**
-     * Returns the API Base URL.
-     * Can be overridden via database setting 'base_url' for Staging/Testing.
-     */
-    public function getBaseUrl(): string
-    {
-        // Try fetching a custom Base URL from the provider.
-        $customUrl = $this->provider->getBaseUrl();
-
-        if (!empty($customUrl) && is_string($customUrl)) {
-            return rtrim($customUrl, '/');
-        }
-
-        // Default to the production environment if no custom URL is provided.
-        return 'https://app-wallee.com';
-    }
-
-    public function getIntegrationMode(): IntegrationMode
-    {
-        // Fallback is also PAYMENT_PAGE to be double safe
-        return $this->provider->getIntegrationMode() ?? IntegrationMode::PAYMENT_PAGE;
-    }
-
-    /**
-     * Gets the configured rounding strategy.
-     * Defaults to RoundingStrategyEnum::BY_LINE_ITEM if missing.
-     */
-    public function getLineItemRoundingStrategy(): RoundingStrategyEnum
-    {
-        // The provider returns ?RoundingStrategyEnum, so we just check for null
-        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategyEnum::BY_LINE_ITEM;
-    }
-
-    /**
-     * Gets the configured log level string ('INFO' or 'DEBUG').
-     * Defaults to 'INFO' if not provided or not 'DEBUG'.
-     */
-    public function getLogLevel(): string
-    {
-        $level = (string) $this->provider->getLogLevel();
-
-        // Check for either the string 'DEBUG' (case-insensitive)
-        // or the Monolog numeric string '100'.
-        if (strtoupper($level) === self::LOG_LEVEL_DEBUG || $level === self::MONOLOG_DEBUG_LEVEL) {
-            return self::LOG_LEVEL_DEBUG;
-        }
-
-        // Default to INFO for all other cases (e.g., 'INFO', '200', null, empty)
-        return self::LOG_LEVEL_INFO;
     }
 
     public function getSpaceId(): int
@@ -102,6 +43,33 @@ class Settings
         return (int) $value;
     }
 
+    public function getApiKey(): string
+    {
+        $value = $this->provider->getApiKey();
+        if (empty($value)) {
+            throw new \InvalidArgumentException('Wallee API Key is missing or invalid.');
+        }
+        return (string) $value;
+    }
+
+    /**
+     * Gets the configured log level string ('INFO' or 'DEBUG').
+     * Defaults to 'INFO' if not provided or not 'DEBUG'.
+     */
+    public function getLogLevel(): string
+    {
+        $level = (string) $this->provider->getLogLevel();
+
+        // Check for either the string 'DEBUG' (case-insensitive)
+        // or the Monolog numeric string '100'.
+        if (strtoupper($level) === self::LOG_LEVEL_DEBUG || $level === self::MONOLOG_DEBUG_LEVEL) {
+            return self::LOG_LEVEL_DEBUG;
+        }
+
+        // Default to INFO for all other cases (e.g., 'INFO', '200', null, empty)
+        return self::LOG_LEVEL_INFO;
+    }
+
     /**
      * Checks if line item consistency (auto-correction) is enabled.
      * Defaults to TRUE if not explicitly disabled.
@@ -110,5 +78,38 @@ class Settings
     {
         // Default to true if null
         return $this->provider->getLineItemConsistencyEnabled() ?? true;
+    }
+
+    /**
+     * Gets the configured rounding strategy.
+     * Defaults to RoundingStrategy::BY_LINE_ITEM if missing.
+     */
+    public function getLineItemRoundingStrategy(): RoundingStrategyEnum
+    {
+        // The provider returns ?RoundingStrategy, so we just check for null
+        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategyEnum::BY_LINE_ITEM;
+    }
+
+    public function getIntegrationMode(): IntegrationModeEnum
+    {
+        // Fallback is also PAYMENT_PAGE to be double safe
+        return $this->provider->getIntegrationMode() ?? IntegrationModeEnum::PAYMENT_PAGE;
+    }
+
+    /**
+     * Returns the API Base URL.
+     * Can be overridden via database setting 'base_url' for Staging/Testing.
+     */
+    public function getBaseUrl(): string
+    {
+        // Attempt to fetch the base URL from the database via the provider.
+        $customUrl = $this->provider->getBaseUrl();
+
+        if (!empty($customUrl) && is_string($customUrl)) {
+            return rtrim($customUrl, '/');
+        }
+
+        // Fallback to the production URL if no custom URL is provided.
+        return 'https://app-wallee.com';
     }
 }

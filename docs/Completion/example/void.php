@@ -1,41 +1,39 @@
 <?php
 
-namespace MyPlugin\ExampleVoidImplementation;
-
-/**
- * Void Example
- *
- * This script demonstrates how to void an authorized transaction.
- *
- * USAGE:
- * php void.php [transaction_id]
- */
-
-use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionCompletionGateway;
-use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
+namespace MyPlugin\ExampleCaptureImplementation;
 
 error_reporting(E_ALL & ~E_DEPRECATED);
 
-/** @var array $common */
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionCompletionGateway;
+use Wallee\PluginCore\Settings\Settings;
+use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// Load the transaction ID from command line arguments or environment.
+$sdkProvider = $common['sdkProvider'];
+
+// 2. Load Transaction ID
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
-    exit($e->getMessage());
+    exit(1);
 }
 
-// Setup the required services for transaction completion.
+// 3. Setup Services
 $gateway = new TransactionCompletionGateway($sdkProvider);
 $service = new TransactionCompletionService($gateway, $logger);
 
-// Execute the void operation for the transaction.
+// 4. Void Transaction
 try {
     echo "Voiding Transaction $transactionId..." . PHP_EOL;
     $state = $service->void((int)$spaceId, $transactionId);

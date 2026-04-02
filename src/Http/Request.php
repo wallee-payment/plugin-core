@@ -9,13 +9,13 @@ use Wallee\PluginCore\Render\JsonStringableTrait;
 class Request
 {
     use JsonStringableTrait;
-    /** @var array<string, string> Lowercase header keys */
-    private array $headers = [];
 
     private string $rawBody = '';
+    /** @var array<string, string|string[]> */
+    private array $headers = [];
 
     /**
-     * @param array<string, string> $headers
+     * @param array<string, string|string[]> $headers
      * @param array<string, mixed> $body
      */
     private function __construct(
@@ -26,24 +26,6 @@ class Request
         // Store headers with lowercase keys for case-insensitive lookups
         $this->headers = array_change_key_case($headers, CASE_LOWER);
         $this->rawBody = $rawBody;
-    }
-
-    public static function fromMagentoRequest(\Magento\Framework\App\RequestInterface $magentoRequest): self
-    {
-        $headers = $magentoRequest->getHeaders()->toArray();
-        $rawBody = (string) $magentoRequest->getContent();
-        $body = json_decode($rawBody, true) ?? [];
-
-        return new self($headers, $body, $rawBody);
-    }
-
-    public static function fromSymfonyRequest(\Symfony\Component\HttpFoundation\Request $symfonyRequest): self
-    {
-        $headers = $symfonyRequest->headers->all();
-        $rawBody = $symfonyRequest->getContent();
-        $body = $symfonyRequest->toArray();
-
-        return new self($headers, $body, $rawBody);
     }
 
     public static function fromWordPress(): self
@@ -60,15 +42,28 @@ class Request
             }
         }
 
-        $rawBody = (string) file_get_contents('php://input');
+        $rawBody = file_get_contents('php://input') ?? '';
         $body = json_decode($rawBody, true) ?? [];
 
         return new self($headers, $body, $rawBody);
     }
 
-    public function get(string $key, mixed $default = null): mixed
+    public static function fromSymfonyRequest(\Symfony\Component\HttpFoundation\Request $symfonyRequest): self
     {
-        return $this->body[$key] ?? $default;
+        $headers = $symfonyRequest->headers->all();
+        $rawBody = $symfonyRequest->getContent();
+        $body = $symfonyRequest->toArray();
+
+        return new self($headers, $body, $rawBody);
+    }
+
+    public static function fromMagentoRequest(\Magento\Framework\App\RequestInterface $magentoRequest): self
+    {
+        $headers = $magentoRequest->getHeaders()->toArray();
+        $rawBody = (string) $magentoRequest->getContent();
+        $body = json_decode($rawBody, true) ?? [];
+
+        return new self($headers, $body, $rawBody);
     }
 
     /**
@@ -82,5 +77,10 @@ class Request
     public function getRawBody(): string
     {
         return $this->rawBody;
+    }
+
+    public function get(string $key, mixed $default = null): mixed
+    {
+        return $this->body[$key] ?? $default;
     }
 }

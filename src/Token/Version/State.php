@@ -10,6 +10,10 @@ enum State: string
 {
     use ValidatesStateTransitions;
 
+    case UNINITIALIZED = 'UNINITIALIZED';
+    case ACTIVE = 'ACTIVE';
+    case OBSOLETE = 'OBSOLETE';
+
     public static function getTransitionMap(): array
     {
         return [
@@ -32,8 +36,4 @@ enum State: string
             ],
         ];
     }
-    case ACTIVE = 'ACTIVE';
-    case OBSOLETE = 'OBSOLETE';
-
-    case UNINITIALIZED = 'UNINITIALIZED';
 }

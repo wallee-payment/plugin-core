@@ -5,37 +5,42 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Sdk;
 
 use Wallee\PluginCore\Settings\Settings;
-use Wallee\Sdk\ApiClient;
+use Wallee\Sdk\Configuration as SdkConfiguration;
+use Wallee\Sdk\ApiClient as SdkApiClient;
 
 class SdkProvider
 {
-    private ApiClient $apiClient;
-    /** @var array<class-string, object> */
-    private array $serviceInstances = [];
+    private SdkConfiguration $configuration;
+    private ?SdkApiClient $apiClient = null; // Keep for backward compatibility if needed, though V2 uses Config
     private int $spaceId;
+    /** @var array<class-string<object>, object> */
+    private array $serviceInstances = [];
 
     public function __construct(Settings $settings)
     {
-        // Use the getter methods to retrieve the values
-        $this->apiClient = new ApiClient($settings->getUserId(), $settings->getApiKey());
+        // V2 uses SdkConfiguration
+        $this->configuration = new SdkConfiguration($settings->getUserId(), $settings->getApiKey());
+        // Fix: Set global default configuration to avoid TypeError in ObjectSerializer which relies on it
+        SdkConfiguration::setDefaultConfiguration($this->configuration);
         $this->spaceId = $settings->getSpaceId();
     }
 
     /**
      * Gets or creates an instance of the requested SDK service.
-     * @template T of object
-     * @param class-string<T> $serviceClass
+     * @param class-string<T> $serviceClassName
      * @return T
+     * @template T of object
      */
-    public function getService(string $serviceClass): object
+    public function getService(string $serviceClassName): object
     {
-        if (!isset($this->serviceInstances[$serviceClass])) {
-            if (!class_exists($serviceClass) || !method_exists($serviceClass, '__construct')) {
-                throw new \InvalidArgumentException("Invalid SDK service class provided: {$serviceClass}");
+        if (!isset($this->serviceInstances[$serviceClassName])) {
+            if (!class_exists($serviceClassName) || !method_exists($serviceClassName, '__construct')) {
+                throw new \InvalidArgumentException("Invalid SDK service class provided: {$serviceClassName}");
             }
-            $this->serviceInstances[$serviceClass] = new $serviceClass($this->apiClient);
+            // V2 Services take SdkConfiguration as first argument
+            $this->serviceInstances[$serviceClassName] = new $serviceClassName($this->configuration);
         }
-        return $this->serviceInstances[$serviceClass];
+        return $this->serviceInstances[$serviceClassName];
     }
 
     /**

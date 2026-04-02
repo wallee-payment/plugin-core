@@ -5,7 +5,7 @@ The **Checkout Engine** handles the creation and management of transactions with
 ### Core Concepts
 
 **1. Transaction Context (`TransactionContext`)**
-This is a **Data Transfer Object (DTO)** that represents the state of the customer's cart. You must map your shop's internal order/quote object into this context before interacting with the library.
+This is a **Data Transfer Object (DTO)** that represents the state of the customer's cart. It is universal and immutable. You must map your shop's internal order/quote object into this context before interacting with the library.
 
 It contains:
 
@@ -63,13 +63,13 @@ Inject the necessary dependencies. In a real application, use your Dependency In
 use Wallee\PluginCore\Transaction\TransactionService;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
 // ... other imports
 
 // 1. Setup SDK
 $sdkProvider = new SdkProvider($credentials);
 
-// 2. Setup Gateway (V1)
+// 2. Setup Gateway (V2)
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 
 // 3. Setup Service
@@ -91,6 +91,7 @@ $context->transactionId = $_SESSION['wallee_transaction_id'] ?? null; // Load ex
 $context->merchantReference = $cart->getId();
 $context->currencyCode = $cart->getCurrency();
 $context->lineItems = $cart->getMappedLineItems();
+// ... map addresses ...
 
 // 2. Execute Upsert
 // This will Update if possible, or Create if necessary.

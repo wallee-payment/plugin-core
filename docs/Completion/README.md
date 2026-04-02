@@ -28,7 +28,7 @@ The `TransactionCompletionService` requires the `TransactionCompletionGatewayInt
 
 ```php
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionCompletionGateway;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionCompletionGateway;
 
 // 1. Setup Gateways
 $completionGateway = new TransactionCompletionGateway($sdkProvider);

@@ -6,13 +6,27 @@ namespace Wallee\PluginCore\Webhook;
 
 use Wallee\PluginCore\Http\Request;
 use Wallee\PluginCore\Log\LoggerInterface;
-use Wallee\PluginCore\Webhook\Enum\WebhookListener as WebhookListenerEnum;
+use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 use Wallee\PluginCore\Webhook\Exception\CommandException;
 use Wallee\PluginCore\Webhook\Exception\SkippedStepException;
 use Wallee\PluginCore\Webhook\Listener\WebhookListenerRegistry;
 
+/**
+ * Processes incoming webhooks for entity state transitions.
+ *
+ * This processor handles the complexity of out-of-order webhooks by calculating a valid
+ * transition path between the last processed state and the current remote state.
+ * It ensures idempotency and correct execution of side effects (listeners).
+ */
 class WebhookProcessor
 {
+    /**
+     * @param WebhookListenerRegistry $listenerRegistry Maps entity/state pairs to specific handlers.
+     * @param StateValidator $stateValidator Validates if a transition is allowed vs. stale or duplicate.
+     * @param WebhookLifecycleHandler $lifecycleHandler Manages persistence, locking, and failure recovery.
+     * @param StateFetcherInterface $stateFetcher Retrieves the current source-of-truth state from the request.
+     * @param LoggerInterface $logger The system logger.
+     */
     public function __construct(
         private readonly WebhookListenerRegistry $listenerRegistry,
         private readonly StateValidator $stateValidator,
@@ -23,25 +37,15 @@ class WebhookProcessor
     }
 
     /**
-     * @return WebhookListenerRegistry
-     */
-    public function getListenerRegistry(): WebhookListenerRegistry
-    {
-        return $this->listenerRegistry;
-    }
-
-    /**
-     * Processes an incoming webhook request from the portal.
+     * Orchestrates the webhook processing lifecycle.
      *
-     * Webhooks in this system are state-driven. Instead of just processing the
-     * "current" state sent in the payload, this processor calculates a "transition path"
-     * from the last known local state to the target remote state. This ensures that
-     * all intermediate business logic (e.g. creating an invoice before marked as paid)
-     * is executed even if webhooks arrive out of order or are skipped.
+     * 1. Extracts context and fetches current state.
+     * 2. Validates the transition path (handles stales/duplicates).
+     * 3. Executes required side effects for each step in the path.
+     * 4. Handles failures with automatic rollback and retry signaling.
      *
-     * @param Request $request The incoming HTTP request.
-     * @return void
-     * @throws CommandException If a critical processing error occurs, triggering a retry.
+     * @param Request $request The incoming webhook request.
+     * @throws CommandException If processing fails in a way that warrants a retry.
      */
     public function process(Request $request): void
     {
@@ -49,70 +53,56 @@ class WebhookProcessor
         $webhookListener = null;
 
         try {
-            // Basic Payload Validation
+            // Context Extraction
             $technicalName = $request->get('listenerEntityTechnicalName');
             $entityId = (int)$request->get('entityId');
             $spaceId = (int)$request->get('spaceId');
 
             if (!$technicalName || !$entityId || !$spaceId) {
-                // We throw InvalidArgumentException for malformed payloads.
-                // These are caught below and logged as warnings (not errors)
-                // because they usually indicate a configuration mismatch rather
-                // than a system failure.
-                throw new \InvalidArgumentException('Request body is missing required fields (technicalName, entityId, or spaceId).');
+                // We strictly require these fields to identify which business logic to apply.
+                // Missing fields indicate a bad payload that cannot be recovered.
+                throw new CommandException('Request body is missing required fields (technicalName, entityId, or spaceId).');
             }
 
-            // State Resolution
-            // We fetch the "source of truth" state from the remote API to prevent
-            // acting on potentially forged or outdated webhook payloads.
             $remoteState = $this->stateFetcher->fetchState($request, $entityId);
-            $webhookListener = WebhookListenerEnum::fromTechnicalName($technicalName);
+            $webhookListener = WebhookListener::fromTechnicalName($technicalName);
             $lastProcessedState = $this->lifecycleHandler->getLastProcessedState($webhookListener, $entityId);
 
             // Path Calculation
-            // Computes the sequence of states that must be processed to reach $remoteState safely.
+            // We calculate a path to support skipped states (e.g. going from PENDING to FULFILLED directly).
             $transitionPath = $this->stateValidator->getTransitionPath($webhookListener, $lastProcessedState, $remoteState);
 
             if ($transitionPath === null) {
-                // null means the transition is logically impossible (e.g. trying to go
-                // from PAID back to PENDING). We ignore these as "stale" or "impossible".
-                $this->logger->debug(
-                    sprintf(
-                        'State transition from "%s" to "%s" is not possible or already passed. Ignoring webhook for entity %s/%d.',
-                        $lastProcessedState,
-                        $remoteState,
-                        $technicalName,
-                        $entityId,
-                    ),
-                );
+                // Stale Webhook Handling
+                // Occurs when a webhook arrives for a state we have already bypassed (e.g. AUTHORIZED arriving after FULFILL).
+                // We ignore these to prevent reverting the entity to an older state.
+                $this->logger->debug("State transition from \"$lastProcessedState\" to \"$remoteState\" is not possible or already passed. Ignoring webhook for entity $technicalName/$entityId.");
                 return;
             }
 
-            // Duplicate Check
-            // empty array means we are already at the target state.
             if (empty($transitionPath)) {
-                $this->logger->debug(sprintf('Webhook for entity %s/%d already processed. Ignoring duplicate.', $technicalName, $entityId));
+                // Duplicate Webhook Handling
+                // Occurs when we receive a notification for a state we just finished processing.
+                $this->logger->debug("Webhook for entity $technicalName/$entityId already processed. Ignoring duplicate.");
                 return;
             }
 
-            // Execution Loop
-            $this->logger->info(sprintf('Processing transition path for entity %s/%d from %s to %s: [%s]', $technicalName, $entityId, $lastProcessedState, $remoteState, implode(' -> ', $transitionPath)));
+            // State Transition Execution
+            $pathStr = implode(' -> ', $transitionPath);
+            $this->logger->info("Processing transition path for entity $technicalName/$entityId from $lastProcessedState to $remoteState: [$pathStr]");
 
             $currentStateInLoop = $lastProcessedState;
 
             foreach ($transitionPath as $stateToProcess) {
                 $context = new WebhookContext($stateToProcess, $currentStateInLoop, $entityId, $spaceId);
 
-                // Acquire locks and start database transactions.
+                // Concurrency Protection
+                // We use preProcess to acquire a lock and check if this specific step was already handled by a parallel process.
                 $shouldProceed = $this->lifecycleHandler->preProcess($webhookListener, $context);
 
                 if (!$shouldProceed) {
-                    // This typically happens in high-concurrency environments where
-                    // another thread processed the state between our fetch and our lock.
-                    $this->logger->debug(sprintf('Race condition: Step %s/%s already processed. Skipping.', $technicalName, $stateToProcess));
-
-                    // We MUST still call onFailure to release the locks acquired in preProcess()
-                    // and roll back the (now empty) transaction.
+                    $this->logger->debug("Race condition: Step $technicalName/$stateToProcess already processed. Skipping.");
+                    // Even if skipped, we must invoke onFailure to ensure the lifecycle handler releases any acquired resources.
                     $this->lifecycleHandler->onFailure($webhookListener, $context, new SkippedStepException('Skipped due to race condition.'));
                     $currentStateInLoop = $stateToProcess;
                     continue;
@@ -122,35 +112,43 @@ class WebhookProcessor
                 $listener = $this->listenerRegistry->findListener($webhookListener, $stateToProcess);
 
                 if ($listener !== null) {
-                    // Logic for this specific state transition.
-                    $this->logger->debug(sprintf('Processing step: %s/%s (Listener found)', $technicalName, $stateToProcess));
+                    // Command Execution
+                    // Each step in the path may trigger a specific business command (e.g. creating an invoice).
+                    $this->logger->debug("Processing step: $technicalName/$stateToProcess (Listener found)");
                     $command = $listener->getCommand($context);
                     $commandResult = $command->execute();
                 } else {
-                    // Some states exist only for tracking and have no associated shop logic.
-                    $this->logger->debug(sprintf('Processing step: %s/%s (No listener registered, skipping command)', $technicalName, $stateToProcess));
+                    // No-op Step
+                    // Not every state transition requires a side effect, but we still track it as "processed".
+                    $this->logger->debug("Processing step: $technicalName/$stateToProcess (No listener registered, skipping command)");
                 }
 
-                // Persist state change and release locks.
                 $this->lifecycleHandler->postProcess($webhookListener, $context, $commandResult);
 
                 $currentStateInLoop = $stateToProcess;
             }
 
-        } catch (\InvalidArgumentException $e) {
-            $this->logger->warning('Webhook validation failed: ' . $e->getMessage());
+        } catch (CommandException $e) {
+            // Validation Failures or Command issues caught as CommandException.
+            // These represent client-side errors (bad payload). We log them as warnings as they don't require system-level intervention.
+            $this->logger->warning("Webhook validation failed: {$e->getMessage()}");
         } catch (\Throwable $e) {
-            // Global Failure Hook: Ensures that even if the business logic crashes,
-            // we roll back the DB and release any distributed locks to prevent deadlocks.
+            // Failure Recovery
+            // We invoke the onFailure hook to rollback active transactions and release locks.
             if ($context && $webhookListener) {
                 $this->lifecycleHandler->onFailure($webhookListener, $context, $e);
             }
-            $this->logger->error('Webhook processing failed: ' . $e->getMessage(), ['exception' => $e]);
+            $this->logger->error("Webhook processing failed: {$e->getMessage()}", ['exception' => $e]);
 
-            // We re-throw as CommandException to signal the entry-point (Controller)
-            // that it should return a 5xx error. This instructs the portal to
-            // retry the webhook later, which is essential for transient failures (DB/Network).
+            // Retry Strategy
+            // Re-throwing as CommandException signals the Controller to return a 5xx status.
+            // This prompts the Portal to retry the delivery later, which is essential for transient failures (e.g. DB locks, network errors).
             throw new CommandException('Webhook command execution failed.', previous: $e);
         }
+    }
+
+    public function getListenerRegistry(): WebhookListenerRegistry
+    {
+        return $this->listenerRegistry;
     }
 }

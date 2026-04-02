@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Tests\Transaction\Completion;
 
 use PHPUnit\Framework\TestCase;
-use Wallee\PluginCore\Transaction\Completion\State;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletion;
+use Wallee\PluginCore\Transaction\Completion\State;
 
 class TransactionCompletionTest extends TestCase
 {

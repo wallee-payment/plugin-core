@@ -2,62 +2,72 @@
 
 namespace MyPlugin\ExampleCheckoutImplementation;
 
+error_reporting(E_ALL & ~E_DEPRECATED);
+
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
 use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Render\IntegratedPaymentRenderService;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\TransactionService;
-
-error_reporting(E_ALL & ~E_DEPRECATED);
 
 // Force IFrame Mode
 putenv('PLUGINCORE_DEMO_INTEGRATION_MODE=iframe');
 
-/** @var array $common */
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-/** @var FilePersistence $persistence */
-$persistence = $common['persistence'];
+$sdkProvider = $common['sdkProvider'];
 
-// Initialize required services.
+// 2. Services
+// FilePersistence is now in Common, but we might want to use a local session file
+$persistence = new FilePersistence(__DIR__ . '/session.json');
+
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $consistency = new LineItemConsistencyService($settings, $logger);
+
 $service = new TransactionService($gateway, $consistency, $logger);
 $renderService = new IntegratedPaymentRenderService();
 
-// Retrieve the transaction ID from the persistence storage to resume the session.
-// We use the TransactionIdLoader to retrieve the ID from CLI arguments or the session.json file.
+// 3. Load Session
 try {
     $transactionId = TransactionIdLoader::load($argv);
-} catch (\Exception $e) {
-    exit("ERROR: No active session. Run '1_start_checkout.php' first.\n");
+} catch (\RuntimeException $e) {
+    exit($e->getMessage() . "\n");
 }
 
 echo "Confirming Checkout for Transaction ID: $transactionId (Mode: IFrame)\n";
 
-// Generate Simulation
+// 4. Generate Simulation
 try {
     $mode = 'iframe';
 
-    // Generate the simulation HTML.
-    // We pick the first available payment method and generate the payment URL.
+    // Fetch Available Methods
     $paymentMethods = $gateway->getAvailablePaymentMethods((int)$spaceId, $transactionId);
     if (empty($paymentMethods)) {
         exit("\n[ERROR] No payment methods available for this transaction.\n");
     }
 
+    // Pick the first one
     $method = reset($paymentMethods);
     echo "Selected Payment Method: " . $method->name . " (ID: " . $method->id . ")\n";
 
+    // Get JS URL
     $javascriptUrl = $service->getPaymentUrl((int)$spaceId, $transactionId);
+
+    // Render HTML Block
     $blockHtml = $renderService->render($javascriptUrl, $method->id, $mode, 'payment-form');
 
-    // Load the host template and inject the rendered payment block.
+    // Load Host Template & Inject
     $templatePath = __DIR__ . '/resources/integrated_checkout_host.html';
     if (!file_exists($templatePath)) {
         exit("\n[ERROR] Host template not found at: $templatePath\n");
@@ -65,7 +75,7 @@ try {
     $templateHtml = file_get_contents($templatePath);
     $finalHtml = str_replace('{{content}}', $blockHtml, $templateHtml);
 
-    // Save the generated simulation to an HTML file.
+    // Save Simulation File
     $outputFile = __DIR__ . "/checkout_simulation_iframe_{$transactionId}.html";
     file_put_contents($outputFile, $finalHtml);
 

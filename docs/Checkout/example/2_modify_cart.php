@@ -2,40 +2,49 @@
 
 namespace MyPlugin\ExampleCheckoutImplementation;
 
+error_reporting(E_ALL & ~E_DEPRECATED);
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
 use Wallee\PluginCore\Address\Address;
-use Wallee\PluginCore\Examples\Common\FilePersistence;
-use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting as PaymentMethodSortingEnum;
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Examples\Common\FilePersistence;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Tax\Tax;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionService;
 
-error_reporting(E_ALL & ~E_DEPRECATED);
-
-/** @var array $common */
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-/** @var FilePersistence $persistence */
-$persistence = $common['persistence'];
+$sdkProvider = $common['sdkProvider'];
 
-// Initialize core services.
+// 2. Services
+// FilePersistence is now in Common, but we might want to use a local session file
+$persistence = new FilePersistence(__DIR__ . '/session.json');
+
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
+
+// FIX: Inject dependencies into Consistency Service
 $consistency = new LineItemConsistencyService($settings, $logger);
+
 $service = new TransactionService($gateway, $consistency, $logger);
 
-// Load the existing session to resume the transaction.
-// We use the TransactionIdLoader to retrieve the ID from CLI arguments or the session.json file.
+// 3. Load Session
 try {
     $originalTransactionId = TransactionIdLoader::load($argv);
-} catch (\Exception $e) {
-    exit("ERROR: No active session. Run '1_start_checkout.php' first.\n");
+} catch (\RuntimeException $e) {
+    exit($e->getMessage() . "\n");
 }
 
 echo "Resuming Checkout for Transaction ID: $originalTransactionId\n";
@@ -50,7 +59,10 @@ function create_base_context($spaceId, $txId, $ref): TransactionContext
     $context->language = 'en-US';
     $context->transactionId = $txId;
 
+    // FIX: Add Customer ID
     $context->customerId = 'guest-123';
+
+    // FIX: Add Success/Fail URLs
     $context->successUrl = 'https://example.com/success';
     $context->failedUrl = 'https://example.com/fail';
 
@@ -72,7 +84,7 @@ function fetch_and_print_methods(TransactionService $service, int $spaceId, int 
 {
     echo " > Fetching available payment methods (Sorted by Name)...\n";
     try {
-        $methods = $service->getAvailablePaymentMethods($spaceId, $txId, PaymentMethodSorting::NAME);
+        $methods = $service->getAvailablePaymentMethods($spaceId, $txId, PaymentMethodSortingEnum::NAME);
         echo "   [Available Payment Methods]:\n";
         foreach ($methods as $method) {
             // Check if title/description is an array (localized) or string
@@ -85,7 +97,7 @@ function fetch_and_print_methods(TransactionService $service, int $spaceId, int 
 }
 
 // ==================================================================================
-// UPDATE: INCREASE QUANTITY
+// UPDATE 1: INCREASE QUANTITY
 // ==================================================================================
 echo "\n--- [Update 1] Increasing Watch Quantity to 2 ---\n";
 
@@ -93,7 +105,7 @@ $context = create_base_context($spaceId, $originalTransactionId, 'DEMO-UPD-' . r
 
 $item1 = new LineItem();
 $item1->uniqueId = 'sku-123';
-$item1->sku = 'sku-123';
+$item1->sku = 'sku-123'; // FIX: Add SKU
 $item1->name = 'Swiss Watch';
 $item1->quantity = 2; // Changed from 1 to 2
 $item1->amountIncludingTax = 300.00; // 150 * 2
@@ -112,17 +124,17 @@ try {
 }
 
 echo " > Sometime later...\n";
-sleep(2); // Reduced from 5 to 2 for faster demo
+sleep(5);
 
 // ==================================================================================
-// UPDATE: ADD ACCESSORY
+// UPDATE 2: ADD ACCESSORY
 // ==================================================================================
 echo "\n--- [Update 2] Adding Leather Strap ---\n";
 
 // Re-use items from previous step to simulate cart accumulation
 $item2 = new LineItem();
 $item2->uniqueId = 'sku-999';
-$item2->sku = 'sku-999';
+$item2->sku = 'sku-999'; // FIX: Add SKU
 $item2->name = 'Leather Strap';
 $item2->quantity = 1;
 $item2->amountIncludingTax = 50.00;
@@ -141,16 +153,16 @@ try {
 }
 
 echo " > Sometime later...\n";
-sleep(2);
+sleep(5);
 
 // ==================================================================================
-// UPDATE: APPLY DISCOUNT
+// UPDATE 3: APPLY DISCOUNT
 // ==================================================================================
 echo "\n--- [Update 3] Applying 10% Discount ---\n";
 
 $item3 = new LineItem();
 $item3->uniqueId = 'discount-summer';
-$item3->sku = 'discount-summer';
+$item3->sku = 'discount-summer'; // FIX: Add SKU
 $item3->name = 'Summer Sale -10%';
 $item3->quantity = 1;
 $item3->amountIncludingTax = -35.00; // 10% of 350
@@ -175,4 +187,4 @@ if ($tx->id === $originalTransactionId) {
 } else {
     echo "VERIFICATION FAILED: ID changed from $originalTransactionId to {$tx->id}.\n";
 }
-echo "NEXT: Confirm the payment by running any of the 3 confirming options. They all start with '3_confirm_*.php'\n";
+echo "NEXT: Confirm the payment by running any of the 3 confirming options. THey all start with '3_confirm_*.php'\n";

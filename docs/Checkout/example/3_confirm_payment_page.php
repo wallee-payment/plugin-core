@@ -2,43 +2,50 @@
 
 namespace MyPlugin\ExampleCheckoutImplementation;
 
+error_reporting(E_ALL & ~E_DEPRECATED);
+
+require_once __DIR__ . '/../../examples/Common/bootstrap.php';
+
 use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\TransactionService;
-
-error_reporting(E_ALL & ~E_DEPRECATED);
 
 // Force Payment Page Mode
 putenv('PLUGINCORE_DEMO_INTEGRATION_MODE=payment_page');
 
-/** @var array $common */
+// 1. Initialize Services via Bootstrap
 $common = require __DIR__ . '/../../examples/Common/bootstrap.php';
 
 $spaceId = $common['spaceId'];
-$sdkProvider = $common['sdkProvider'];
+$userId = $common['userId'];
+$apiSecret = $common['apiSecret'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-/** @var FilePersistence $persistence */
-$persistence = $common['persistence'];
+$sdkProvider = $common['sdkProvider'];
 
-// Initialize required services.
+// 2. Services
+// FilePersistence is now in Common, but we might want to use a local session file
+$persistence = new FilePersistence(__DIR__ . '/session.json');
+
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $consistency = new LineItemConsistencyService($settings, $logger);
+
 $service = new TransactionService($gateway, $consistency, $logger);
 
-// Retrieve the transaction ID from the persistence storage to resume the session.
-// We use the TransactionIdLoader to retrieve the ID from CLI arguments or the session.json file.
+// 3. Load Session
 try {
     $transactionId = TransactionIdLoader::load($argv);
-} catch (\Exception $e) {
-    exit("ERROR: No active session. Run '1_start_checkout.php' first.\n");
+} catch (\RuntimeException $e) {
+    exit($e->getMessage() . "\n");
 }
 
 echo "Confirming Checkout for Transaction ID: $transactionId (Mode: Payment Page)\n";
 
-// Generate the payment URL.
+// 4. Generate URL
 try {
     $paymentUrl = $service->getPaymentUrl((int)$spaceId, $transactionId);
 
