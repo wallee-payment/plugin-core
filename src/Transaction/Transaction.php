@@ -6,6 +6,7 @@ namespace Wallee\PluginCore\Transaction;
 
 use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\LineItem\LineItem;
+use Wallee\PluginCore\Render\JsonStringableTrait;
 use Wallee\PluginCore\Token\Token;
 
 /**
@@ -13,40 +14,7 @@ use Wallee\PluginCore\Token\Token;
  */
 class Transaction
 {
-    /**
-     * @var int The transaction ID.
-     */
-    public int $id;
-
-    /**
-     * @var int The space ID.
-     */
-    public int $spaceId;
-
-    /**
-     * @var string|null The merchant reference.
-     */
-    public ?string $merchantReference = null;
-
-    /**
-     * @var string|null The customer ID.
-     */
-    public ?string $customerId = null;
-
-    /**
-     * @var string|null The currency code.
-     */
-    public ?string $currency = null;
-
-    /**
-     * @var State The strict state enum.
-     */
-    public State $state;
-
-    /**
-     * @var int The version number required for optimistic locking (Read-Modify-Write).
-     */
-    public int $version;
+    use JsonStringableTrait;
 
     /**
      * @var float|null The authorized amount (Validation).
@@ -54,26 +22,9 @@ class Transaction
     public ?float $authorizedAmount = null;
 
     /**
-     * @var float|null The amount already refunded (Validation).
+     * @var \DateTimeImmutable|null The date/time when the transaction was authorized.
      */
-    public ?float $refundedAmount = null;
-
-    /**
-     * @var LineItem[] The line items (Validation).
-     */
-    public array $lineItems = [];
-
-    /**
-     * @var string|null The failure reason description.
-     */
-    public ?string $failureReason = null;
-
-    /**
-     * @var string|null The user-facing failure message.
-     */
-    public ?string $userFailureMessage = null;
-
-
+    public ?\DateTimeImmutable $authorizedOn = null;
 
     /**
      * @var Address|null The billing address.
@@ -81,9 +32,9 @@ class Transaction
     public ?Address $billingAddress = null;
 
     /**
-     * @var Address|null The shipping address.
+     * @var \DateTimeImmutable|null The date/time when the transaction was completed.
      */
-    public ?Address $shippingAddress = null;
+    public ?\DateTimeImmutable $completedOn = null;
 
     /**
      * @var \DateTimeImmutable|null The date/time when the transaction was created.
@@ -91,14 +42,14 @@ class Transaction
     public ?\DateTimeImmutable $createdOn = null;
 
     /**
-     * @var \DateTimeImmutable|null The date/time when the transaction was authorized.
+     * @var string|null The currency code.
      */
-    public ?\DateTimeImmutable $authorizedOn = null;
+    public ?string $currency = null;
 
     /**
-     * @var \DateTimeImmutable|null The date/time when the transaction was completed.
+     * @var string|null The customer ID.
      */
-    public ?\DateTimeImmutable $completedOn = null;
+    public ?string $customerId = null;
 
     /**
      * @var \DateTimeImmutable|null The date/time when the transaction failed.
@@ -106,12 +57,62 @@ class Transaction
     public ?\DateTimeImmutable $failedOn = null;
 
     /**
+     * @var string|null The failure reason description.
+     */
+    public ?string $failureReason = null;
+
+    /**
+     * @var int The transaction ID.
+     */
+    public int $id;
+
+    /**
+     * @var list<LineItem> The line items (Validation).
+     */
+    public array $lineItems = [];
+
+    /**
+     * @var string|null The merchant reference.
+     */
+    public ?string $merchantReference = null;
+
+    /**
      * @var \DateTimeImmutable|null The date/time when the transaction started processing.
      */
     public ?\DateTimeImmutable $processingOn = null;
 
     /**
+     * @var float|null The amount already refunded (Validation).
+     */
+    public ?float $refundedAmount = null;
+
+    /**
+     * @var Address|null The shipping address.
+     */
+    public ?Address $shippingAddress = null;
+
+    /**
+     * @var int The space ID.
+     */
+    public int $spaceId;
+
+    /**
+     * @var State The strict state enum.
+     */
+    public State $state;
+
+    /**
      * @var Token|null The token used for the transaction.
      */
     public ?Token $token = null;
+
+    /**
+     * @var string|null The user-facing failure message.
+     */
+    public ?string $userFailureMessage = null;
+
+    /**
+     * @var int The version number required for optimistic locking (Read-Modify-Write).
+     */
+    public int $version;
 }

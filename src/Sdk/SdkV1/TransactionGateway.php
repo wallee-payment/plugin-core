@@ -13,6 +13,8 @@ use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Tax\Tax;
+use Wallee\PluginCore\Token\State as TokenState;
+use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Transaction\State as StateEnum;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionContext;
@@ -23,14 +25,16 @@ use Wallee\Sdk\Model\AddressCreate as SdkAddressCreate;
 use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
 use Wallee\Sdk\Model\CriteriaOperator as SdkCriteriaOperator;
 use Wallee\Sdk\Model\EntityQuery as SdkEntityQuery;
-use Wallee\Sdk\Model\EntityQueryOrderBy as SdkEntityQueryOrderBy;
-use Wallee\Sdk\Model\EntityQueryOrderByType as SdkEntityQueryOrderByType;
 use Wallee\Sdk\Model\EntityQueryFilter as SdkEntityQueryFilter;
 use Wallee\Sdk\Model\EntityQueryFilterType as SdkEntityQueryFilterType;
+use Wallee\Sdk\Model\EntityQueryOrderBy as SdkEntityQueryOrderBy;
+use Wallee\Sdk\Model\EntityQueryOrderByType as SdkEntityQueryOrderByType;
+use Wallee\Sdk\Model\LineItem as SdkLineItem;
 use Wallee\Sdk\Model\LineItemCreate as SdkLineItemCreate;
 use Wallee\Sdk\Model\LineItemType as SdkLineItemType;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
 use Wallee\Sdk\Model\TaxCreate as SdkTaxCreate;
+use Wallee\Sdk\Model\Token as SdkToken;
 use Wallee\Sdk\Model\Transaction as SdkTransaction;
 use Wallee\Sdk\Model\TransactionCreate as SdkTransactionCreate;
 use Wallee\Sdk\Model\TransactionPending as SdkTransactionPending;
@@ -39,10 +43,6 @@ use Wallee\Sdk\Service\TransactionIframeService as SdkTransactionIframeService;
 use Wallee\Sdk\Service\TransactionLightboxService as SdkTransactionLightboxService;
 use Wallee\Sdk\Service\TransactionPaymentPageService as SdkTransactionPaymentPageService;
 use Wallee\Sdk\Service\TransactionService as SdkTransactionService;
-use Wallee\Sdk\Model\LineItem as SdkLineItem;
-use Wallee\PluginCore\Token\Token;
-use Wallee\PluginCore\Token\State as TokenState;
-use Wallee\Sdk\Model\Token as SdkToken;
 
 class TransactionGateway implements TransactionGatewayInterface
 {
@@ -141,7 +141,6 @@ class TransactionGateway implements TransactionGatewayInterface
         }
     }
 
-
     /**
      * Gets a transaction by ID and throws if failed.
      *
@@ -158,7 +157,7 @@ class TransactionGateway implements TransactionGatewayInterface
             $sdkTransaction = $this->transactionService->read($spaceId, $transactionId);
             $result = $this->mapToTransaction($sdkTransaction);
 
-            $this->logger->debug("Gateway: Transaction state is " . $result->state->value);
+            $this->logger->debug("Gateway: Transaction state is {$result->state->value}");
 
             return $result;
         } catch (\Exception $e) {
@@ -182,7 +181,6 @@ class TransactionGateway implements TransactionGatewayInterface
         $sdkResults = $this->transactionService->fetchPaymentMethods($spaceId, $transactionId, $mode);
         return array_map([$this, 'mapToPaymentMethod'], $sdkResults);
     }
-
 
     /**
      * Gets all active payment method configurations.
@@ -208,7 +206,6 @@ class TransactionGateway implements TransactionGatewayInterface
             $results,
         );
     }
-
 
     /**
      * Gets the payment URL for a transaction.
@@ -238,102 +235,6 @@ class TransactionGateway implements TransactionGatewayInterface
     }
 
     /**
-     * Updates an existing transaction.
-     *
-     * @param int $transactionId The transaction ID.
-     * @param int $version The transaction version.
-     * @param TransactionContext $context The transaction context.
-     * @return Transaction The updated transaction.
-     * @throws \Exception If the update fails.
-     */
-    public function update(int $transactionId, int $version, TransactionContext $context): Transaction
-    {
-        $this->logger->debug("Gateway: Preparing to UPDATE transaction.", ['id' => $transactionId]);
-
-        $sdkTransactionPending = new SdkTransactionPending();
-
-        $sdkTransactionPending->setId($transactionId);
-        $sdkTransactionPending->setVersion($version);
-
-        // Map the NEW data from the Context
-        $sdkTransactionPending->setBillingAddress($this->mapAddress($context->billingAddress));
-        $sdkTransactionPending->setShippingAddress($context->shippingAddress ? $this->mapAddress($context->shippingAddress) : null);
-        $sdkTransactionPending->setLineItems(array_map([$this, 'mapLineItem'], $context->lineItems));
-        $sdkTransactionPending->setCurrency($context->currencyCode);
-        $sdkTransactionPending->setLanguage($context->language);
-        $sdkTransactionPending->setCustomerEmailAddress($context->billingAddress->emailAddress);
-        $sdkTransactionPending->setCustomerId($context->customerId);
-        $sdkTransactionPending->setMerchantReference($context->merchantReference);
-        $sdkTransactionPending->setSuccessUrl($context->successUrl);
-        $sdkTransactionPending->setFailedUrl($context->failedUrl);
-
-        try {
-            $this->logger->debug("Gateway: Sending UPDATE request to SDK.");
-            $sdkTransaction = $this->transactionService->update($context->spaceId, $sdkTransactionPending);
-            $this->logger->debug("Gateway: Transaction updated successfully.", ['state' => (string) $sdkTransaction->getState()]);
-
-            return $this->mapToTransaction($sdkTransaction);
-        } catch (\Exception $e) {
-            $this->logger->error("Gateway: Failed to update transaction.", ['error' => $e->getMessage()]);
-            throw $e;
-        }
-    }
-
-    /**
-     * @inheritDoc
-     */
-    public function search(int $spaceId, TransactionSearchCriteria $criteria): array
-    {
-        $this->logger->debug("Gateway: Searching transactions in Space $spaceId.");
-
-        $query = new SdkEntityQuery();
-
-        if ($criteria->limit !== null) {
-            $query->setNumberOfEntities($criteria->limit);
-        }
-
-        if ($criteria->sortField !== null) {
-            $orderBy = new SdkEntityQueryOrderBy();
-            $orderBy->setFieldName($criteria->sortField);
-            $orderBy->setSorting(
-                strtoupper($criteria->sortOrder) === 'ASC'
-                    ? SdkEntityQueryOrderByType::ASC
-                    : SdkEntityQueryOrderByType::DESC
-            );
-            $query->setOrderBys([$orderBy]);
-        }
-
-        if (!empty($criteria->filters)) {
-            $filters = [];
-            foreach ($criteria->filters as $field => $value) {
-                $leaf = new SdkEntityQueryFilter();
-                $leaf->setFieldName($field);
-                $leaf->setValue($value);
-                $leaf->setOperator(SdkCriteriaOperator::EQUALS);
-                $leaf->setType(SdkEntityQueryFilterType::LEAF);
-                $filters[] = $leaf;
-            }
-
-            if (count($filters) === 1) {
-                $query->setFilter($filters[0]);
-            } elseif (count($filters) > 1) {
-                $root = new SdkEntityQueryFilter();
-                $root->setType(SdkEntityQueryFilterType::_AND);
-                $root->setChildren($filters);
-                $query->setFilter($root);
-            }
-        }
-
-        try {
-            $results = $this->transactionService->search($spaceId, $query);
-            return array_map([$this, 'mapToTransaction'], $results);
-        } catch (\Exception $e) {
-            $this->logger->error("Gateway: Failed to search transactions.", ['error' => $e->getMessage()]);
-            throw $e;
-        }
-    }
-
-    /**
      * Maps a domain Address to an SDK AddressCreate.
      *
      * @param Address $source The source address.
@@ -352,7 +253,7 @@ class TransactionGateway implements TransactionGatewayInterface
         $sdkAddressCreate->setStreet($source->street);
         $sdkAddressCreate->setEmailAddress($source->emailAddress);
         $sdkAddressCreate->setSalutation($source->salutation);
-        $sdkAddressCreate->setDateOfBirth($source->dateOfBirth);
+        $sdkAddressCreate->setDateOfBirth($source->dateOfBirth ? \DateTime::createFromImmutable($source->dateOfBirth) : null);
         $sdkAddressCreate->setSalesTaxNumber($source->salesTaxNumber);
         return $sdkAddressCreate;
     }
@@ -395,6 +296,70 @@ class TransactionGateway implements TransactionGatewayInterface
     }
 
     /**
+     * Maps a domain Tax to an SDK TaxCreate.
+     *
+     * @param Tax $source The source tax.
+     * @return SdkTaxCreate The SDK tax.
+     */
+    private function mapTax(Tax $source): SdkTaxCreate
+    {
+        $sdkTaxCreate = new SdkTaxCreate();
+        $sdkTaxCreate->setTitle($source->title);
+        $sdkTaxCreate->setRate($source->rate);
+        return $sdkTaxCreate;
+    }
+
+    /**
+     * Maps an SDK Address to a domain Address.
+     *
+     * @param SdkAddress $sdkAddress
+     * @return Address
+     */
+    private function mapToAddress(SdkAddress $sdkAddress): Address
+    {
+        $address = new Address();
+        $address->city = $sdkAddress->getCity();
+        $address->country = $sdkAddress->getCountry();
+        $address->familyName = $sdkAddress->getFamilyName();
+        $address->givenName = $sdkAddress->getGivenName();
+        $address->organizationName = $sdkAddress->getOrganizationName();
+        $address->phoneNumber = $sdkAddress->getPhoneNumber();
+        $address->postcode = $sdkAddress->getPostcode();
+        $address->street = $sdkAddress->getStreet();
+        $address->emailAddress = $sdkAddress->getEmailAddress();
+        $address->salutation = $sdkAddress->getSalutation();
+        $address->dateOfBirth = $this->toDateTimeImmutable($sdkAddress->getDateOfBirth());
+        $address->salesTaxNumber = $sdkAddress->getSalesTaxNumber();
+        return $address;
+    }
+
+    /**
+     * Maps an SDK LineItem to a Domain LineItem.
+     *
+     * @param SdkLineItem $sdkItem
+     * @return LineItem
+     */
+    private function mapToLineItem(SdkLineItem $sdkItem): LineItem
+    {
+        $item = new LineItem();
+        $item->uniqueId = $sdkItem->getUniqueId();
+        $item->sku = $sdkItem->getSku();
+        $item->name = $sdkItem->getName();
+        $item->quantity = $sdkItem->getQuantity();
+        $item->amountIncludingTax = $sdkItem->getAmountIncludingTax();
+        $item->type = match ($sdkItem->getType()) {
+            SdkLineItemType::DISCOUNT => LineItem::TYPE_DISCOUNT,
+            SdkLineItemType::SHIPPING => LineItem::TYPE_SHIPPING,
+            SdkLineItemType::FEE => LineItem::TYPE_FEE,
+            default => LineItem::TYPE_PRODUCT,
+        };
+        // Attributes and taxes could be mapped but are not strictly required for current validation needs.
+        // If needed, can be added later.
+
+        return $item;
+    }
+
+    /**
      * Maps an SDK PaymentMethodConfiguration to a domain object.
      *
      * @param SdkPaymentMethodConfiguration $sdkPaymentMethodConfiguration The SDK object.
@@ -416,17 +381,28 @@ class TransactionGateway implements TransactionGatewayInterface
     }
 
     /**
-     * Maps a domain Tax to an SDK TaxCreate.
+     * Maps an SDK Token to a domain Token.
      *
-     * @param Tax $source The source tax.
-     * @return SdkTaxCreate The SDK tax.
+     * @param SdkToken $sdkToken
+     * @return Token
      */
-    private function mapTax(Tax $source): SdkTaxCreate
+    private function mapToToken(SdkToken $sdkToken): Token
     {
-        $sdkTaxCreate = new SdkTaxCreate();
-        $sdkTaxCreate->setTitle($source->title);
-        $sdkTaxCreate->setRate($source->rate);
-        return $sdkTaxCreate;
+        $token = new Token();
+        $token->id = $sdkToken->getId();
+        $token->spaceId = $sdkToken->getLinkedSpaceId();
+        $token->version = $sdkToken->getVersion();
+
+        $token->state = match ((string) $sdkToken->getState()) {
+            'ACTIVE' => TokenState::ACTIVE,
+            'CREATE' => TokenState::CREATE,
+            'DELETED' => TokenState::DELETED,
+            'DELETING' => TokenState::DELETING,
+            'INACTIVE' => TokenState::INACTIVE,
+            default => TokenState::ACTIVE,
+        };
+
+        return $token;
     }
 
     /**
@@ -499,29 +475,78 @@ class TransactionGateway implements TransactionGatewayInterface
     }
 
     /**
-     * Maps an SDK LineItem to a Domain LineItem.
+     * Resolves a localized string (which might be an array) to a single string.
      *
-     * @param SdkLineItem $sdkItem
-     * @return LineItem
+     * @param array<string, string>|string|null $input
+     * @return string|null
      */
-    private function mapToLineItem(SdkLineItem $sdkItem): LineItem
+    private function resolveLocalization(array|string|null $input): ?string
     {
-        $item = new LineItem();
-        $item->uniqueId = $sdkItem->getUniqueId();
-        $item->sku = $sdkItem->getSku();
-        $item->name = $sdkItem->getName();
-        $item->quantity = $sdkItem->getQuantity();
-        $item->amountIncludingTax = $sdkItem->getAmountIncludingTax();
-        $item->type = match ($sdkItem->getType()) {
-            SdkLineItemType::DISCOUNT => LineItem::TYPE_DISCOUNT,
-            SdkLineItemType::SHIPPING => LineItem::TYPE_SHIPPING,
-            SdkLineItemType::FEE => LineItem::TYPE_FEE,
-            default => LineItem::TYPE_PRODUCT,
-        };
-        // Attributes and taxes could be mapped but are not strictly required for current validation needs.
-        // If needed, can be added later.
+        if (is_string($input) || is_null($input)) {
+            return $input;
+        }
 
-        return $item;
+        if (is_array($input)) {
+            // Prefer English, fallback to first available
+            return $input['en-US'] ?? $input['en-GB'] ?? reset($input) ?: null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function search(int $spaceId, TransactionSearchCriteria $criteria): array
+    {
+        $this->logger->debug("Gateway: Searching transactions in Space $spaceId.");
+
+        $query = new SdkEntityQuery();
+
+        if ($criteria->limit !== null) {
+            $query->setNumberOfEntities($criteria->limit);
+        }
+
+        if ($criteria->sortField !== null) {
+            $orderBy = new SdkEntityQueryOrderBy();
+            $orderBy->setFieldName($criteria->sortField);
+            $orderBy->setSorting(
+                strtoupper($criteria->sortOrder) === 'ASC'
+                    ? SdkEntityQueryOrderByType::ASC
+                    : SdkEntityQueryOrderByType::DESC,
+            );
+            $query->setOrderBys([$orderBy]);
+        }
+
+        if (!empty($criteria->filters)) {
+            $filters = [];
+            foreach ($criteria->filters as $field => $value) {
+                $leaf = new SdkEntityQueryFilter();
+                $leaf->setFieldName($field);
+                /** @var mixed $value */
+                $leaf->setValue($value);
+                $leaf->setOperator(SdkCriteriaOperator::EQUALS);
+                $leaf->setType(SdkEntityQueryFilterType::LEAF);
+                $filters[] = $leaf;
+            }
+
+            if (count($filters) === 1) {
+                $query->setFilter($filters[0]);
+            } elseif (count($filters) > 1) {
+                $root = new SdkEntityQueryFilter();
+                $root->setType(SdkEntityQueryFilterType::_AND);
+                $root->setChildren($filters);
+                $query->setFilter($root);
+            }
+        }
+
+        try {
+            $results = $this->transactionService->search($spaceId, $query);
+            return array_map([$this, 'mapToTransaction'], $results);
+        } catch (\Exception $e) {
+            $this->logger->error("Gateway: Failed to search transactions.", ['error' => $e->getMessage()]);
+            throw $e;
+        }
     }
 
     /**
@@ -536,78 +561,44 @@ class TransactionGateway implements TransactionGatewayInterface
     }
 
     /**
-     * Resolves a localized string (which might be an array) to a single string.
+     * Updates an existing transaction.
      *
-     * @param array<string, string>|string|null $input
-     * @return string|null
+     * @param int $transactionId The transaction ID.
+     * @param int $version The transaction version.
+     * @param TransactionContext $context The transaction context.
+     * @return Transaction The updated transaction.
+     * @throws \Exception If the update fails.
      */
-    private function resolveLocalization(array|string|null $input): ?string
+    public function update(int $transactionId, int $version, TransactionContext $context): Transaction
     {
-        if (is_string($input) || is_null($input)) {
-            return $input;
+        $this->logger->debug("Gateway: Preparing to UPDATE transaction.", ['id' => $transactionId]);
+
+        $sdkTransactionPending = new SdkTransactionPending();
+
+        $sdkTransactionPending->setId($transactionId);
+        $sdkTransactionPending->setVersion($version);
+
+        // Map the NEW data from the Context
+        $sdkTransactionPending->setBillingAddress($this->mapAddress($context->billingAddress));
+        $sdkTransactionPending->setShippingAddress($context->shippingAddress ? $this->mapAddress($context->shippingAddress) : null);
+        $sdkTransactionPending->setLineItems(array_map([$this, 'mapLineItem'], $context->lineItems));
+        $sdkTransactionPending->setCurrency($context->currencyCode);
+        $sdkTransactionPending->setLanguage($context->language);
+        $sdkTransactionPending->setCustomerEmailAddress($context->billingAddress->emailAddress);
+        $sdkTransactionPending->setCustomerId($context->customerId);
+        $sdkTransactionPending->setMerchantReference($context->merchantReference);
+        $sdkTransactionPending->setSuccessUrl($context->successUrl);
+        $sdkTransactionPending->setFailedUrl($context->failedUrl);
+
+        try {
+            $this->logger->debug("Gateway: Sending UPDATE request to SDK.");
+            $sdkTransaction = $this->transactionService->update($context->spaceId, $sdkTransactionPending);
+            $this->logger->debug("Gateway: Transaction updated successfully.", ['state' => (string) $sdkTransaction->getState()]);
+
+            return $this->mapToTransaction($sdkTransaction);
+        } catch (\Exception $e) {
+            $this->logger->error("Gateway: Failed to update transaction.", ['error' => $e->getMessage()]);
+            throw $e;
         }
-
-        if (is_array($input)) {
-            // Prefer English
-            if (isset($input['en-US'])) {
-                return $input['en-US'];
-            }
-            if (isset($input['en-GB'])) {
-                return $input['en-GB'];
-            }
-            // Fallback to first available
-            return reset($input) ?: null;
-        }
-
-        return null;
-    }
-
-    /**
-     * Maps an SDK Token to a domain Token.
-     *
-     * @param SdkToken $sdkToken
-     * @return Token
-     */
-    private function mapToToken(SdkToken $sdkToken): Token
-    {
-        $token = new Token();
-        $token->id = $sdkToken->getId();
-        $token->spaceId = $sdkToken->getLinkedSpaceId();
-        $token->version = $sdkToken->getVersion();
-
-        $token->state = match ((string) $sdkToken->getState()) {
-            'ACTIVE' => TokenState::ACTIVE,
-            'CREATE' => TokenState::CREATE,
-            'DELETED' => TokenState::DELETED,
-            'DELETING' => TokenState::DELETING,
-            'INACTIVE' => TokenState::INACTIVE,
-            default => TokenState::ACTIVE,
-        };
-
-        return $token;
-    }
-
-    /**
-     * Maps an SDK Address to a domain Address.
-     *
-     * @param SdkAddress $sdkAddress
-     * @return Address
-     */
-    private function mapToAddress(SdkAddress $sdkAddress): Address
-    {
-        $address = new Address();
-        $address->city = $sdkAddress->getCity();
-        $address->country = $sdkAddress->getCountry();
-        $address->familyName = $sdkAddress->getFamilyName();
-        $address->givenName = $sdkAddress->getGivenName();
-        $address->organizationName = $sdkAddress->getOrganizationName();
-        $address->phoneNumber = $sdkAddress->getPhoneNumber();
-        $address->postcode = $sdkAddress->getPostcode();
-        $address->street = $sdkAddress->getStreet();
-        $address->emailAddress = $sdkAddress->getEmailAddress();
-        $address->salutation = $sdkAddress->getSalutation();
-        $address->dateOfBirth = $this->toDateTimeImmutable($sdkAddress->getDateOfBirth());
-        $address->salesTaxNumber = $sdkAddress->getSalesTaxNumber();
-        return $address;
     }
 }

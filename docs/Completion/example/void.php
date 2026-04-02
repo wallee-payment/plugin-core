@@ -24,18 +24,18 @@ $spaceId = $common['spaceId'];
 $sdkProvider = $common['sdkProvider'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// 1. Load Transaction ID
+// Load the transaction ID from command line arguments or environment.
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
     exit($e->getMessage());
 }
 
-// 2. Setup Services
+// Setup the required services for transaction completion.
 $gateway = new TransactionCompletionGateway($sdkProvider);
 $service = new TransactionCompletionService($gateway, $logger);
 
-// 3. Void Transaction
+// Execute the void operation for the transaction.
 try {
     echo "Voiding Transaction $transactionId..." . PHP_EOL;
     $state = $service->void((int)$spaceId, $transactionId);

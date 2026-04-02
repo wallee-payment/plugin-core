@@ -26,10 +26,10 @@ use Wallee\Sdk\Service\WebhookUrlService as SdkWebhookUrlService;
 class WebhookManagementGatewayTest extends TestCase
 {
     private WebhookManagementGateway $gateway;
-    private MockObject|SdkProvider $sdkProvider;
-    private MockObject|LoggerInterface $logger;
-    private MockObject|SdkWebhookUrlService $urlService;
     private MockObject|SdkWebhookListenerService $listenerService;
+    private MockObject|LoggerInterface $logger;
+    private MockObject|SdkProvider $sdkProvider;
+    private MockObject|SdkWebhookUrlService $urlService;
 
     protected function setUp(): void
     {
@@ -45,29 +45,6 @@ class WebhookManagementGatewayTest extends TestCase
             ]);
 
         $this->gateway = new WebhookManagementGateway($this->sdkProvider, $this->logger);
-    }
-
-    public function testCreateUrl(): void
-    {
-        $spaceId = 1;
-        $url = 'http://test.com';
-        $name = 'Test URL';
-
-        $sdkUrl = new SdkWebhookUrl();
-        $sdkUrl->setId(100);
-
-        $this->urlService->expects($this->once())
-            ->method('create')
-            ->with($this->equalTo($spaceId), $this->callback(function (SdkWebhookUrlCreate $create) use ($url, $name) {
-                return $create->getUrl() === $url &&
-                    $create->getName() === $name &&
-                    $create->getState() === CreationEntityState::ACTIVE;
-            }))
-            ->willReturn($sdkUrl);
-
-        $id = $this->gateway->createUrl($spaceId, $url, $name);
-
-        $this->assertEquals(100, $id);
     }
 
     /**
@@ -103,27 +80,151 @@ class WebhookManagementGatewayTest extends TestCase
         $this->assertEquals(200, $id);
     }
 
-    public function testUpdateUrl(): void
+    public function testCreateUrl(): void
     {
         $spaceId = 1;
-        $id = 100;
-        $newUrl = 'http://updated.com';
+        $url = 'http://test.com';
+        $name = 'Test URL';
 
-        $currentUrl = new SdkWebhookUrl();
-        $currentUrl->setId($id);
-        $currentUrl->setVersion(10);
-
-        $this->urlService->expects($this->once())->method('read')->with($spaceId, $id)->willReturn($currentUrl);
+        $sdkUrl = new SdkWebhookUrl();
+        $sdkUrl->setId(100);
 
         $this->urlService->expects($this->once())
-            ->method('update')
-            ->with($this->equalTo($spaceId), $this->callback(function (WebhookUrlUpdate $update) use ($id, $newUrl) {
-                return $update->getId() === $id &&
-                    $update->getUrl() === $newUrl &&
-                    $update->getVersion() === 10;
-            }));
+            ->method('create')
+            ->with($this->equalTo($spaceId), $this->callback(function (SdkWebhookUrlCreate $create) use ($url, $name) {
+                return $create->getUrl() === $url &&
+                    $create->getName() === $name &&
+                    $create->getState() === CreationEntityState::ACTIVE;
+            }))
+            ->willReturn($sdkUrl);
 
-        $this->gateway->updateUrl($spaceId, $id, $newUrl);
+        $id = $this->gateway->createUrl($spaceId, $url, $name);
+
+        $this->assertEquals(100, $id);
+    }
+
+    public function testDeleteListener(): void
+    {
+        $this->listenerService->expects($this->once())->method('delete')->with(1, 200);
+        $this->gateway->deleteListener(1, 200);
+    }
+
+    public function testDeleteUrl(): void
+    {
+        $this->urlService->expects($this->once())->method('delete')->with(1, 100);
+        $this->gateway->deleteUrl(1, 100);
+    }
+
+    /**
+     * Tests that getUrl reads a single webhook URL from SDK v1
+     * and returns a typed WebhookUrl DTO.
+     */
+    public function testGetUrl(): void
+    {
+        $spaceId = 1;
+        $webhookUrlId = 100;
+
+        $sdkUrl = new SdkWebhookUrl();
+        $sdkUrl->setId($webhookUrlId);
+        $sdkUrl->setName('Test URL');
+        $sdkUrl->setUrl('http://test.com');
+        $sdkUrl->setState(CreationEntityState::ACTIVE);
+
+        $this->urlService->expects($this->once())
+            ->method('read')
+            ->with($spaceId, $webhookUrlId)
+            ->willReturn($sdkUrl);
+
+        $result = $this->gateway->getUrl($spaceId, $webhookUrlId);
+
+        // Assert the returned object is a domain DTO, not an SDK object
+        $this->assertInstanceOf(WebhookUrl::class, $result);
+        $this->assertEquals($webhookUrlId, $result->id);
+        $this->assertEquals('Test URL', $result->name);
+        $this->assertEquals('http://test.com', $result->url);
+    }
+
+    /**
+     * Tests that getWebhookListeners returns typed WebhookListener DTOs
+     * instead of raw SDK objects.
+     */
+    public function testGetWebhookListeners(): void
+    {
+        $spaceId = 1;
+        $urlId = 100;
+
+        $listener = new SdkWebhookListener();
+        $listener->setId(200);
+        $listener->setName('Test Listener');
+
+        $this->listenerService->expects($this->once())
+            ->method('search')
+            ->with($this->equalTo($spaceId), $this->callback(function ($query) use ($urlId) {
+                $filter = $query->getFilter();
+                return $filter instanceof EntityQueryFilter &&
+                    $filter->getFieldName() === 'url.id' &&
+                    $filter->getValue() === $urlId &&
+                    $query->getNumberOfEntities() === 100;
+            }))
+            ->willReturn([$listener]);
+
+        $results = $this->gateway->getWebhookListeners($spaceId, $urlId);
+
+        $this->assertCount(1, $results);
+        // Assert the returned object is a domain DTO, not an SDK object
+        $this->assertInstanceOf(WebhookListener::class, $results[0]);
+        $this->assertEquals(200, $results[0]->id);
+        $this->assertEquals('Test Listener', $results[0]->name);
+    }
+
+    /**
+     * Tests that getWebhookUrls applies the specified state filter.
+     */
+    public function testGetWebhookUrlsWithStateFilter(): void
+    {
+        $spaceId = 1;
+        $state = 'ACTIVE';
+        $sdkUrl = new SdkWebhookUrl();
+        $sdkUrl->setId(100);
+
+        $this->urlService->expects($this->once())
+            ->method('search')
+            ->with($this->equalTo($spaceId), $this->callback(function ($query) use ($state) {
+                $filter = $query->getFilter();
+                return $filter instanceof EntityQueryFilter &&
+                    $filter->getFieldName() === 'state' &&
+                    $filter->getValue() === $state;
+            }))
+            ->willReturn([$sdkUrl]);
+
+        $results = $this->gateway->getWebhookUrls($spaceId, $state);
+
+        $this->assertCount(1, $results);
+        $this->assertInstanceOf(WebhookUrl::class, $results[0]);
+        $this->assertEquals(100, $results[0]->id);
+    }
+
+    /**
+     * Tests that listUrls does not apply a state filter.
+     */
+    public function testListUrls(): void
+    {
+        $spaceId = 1;
+        $sdkUrl = new SdkWebhookUrl();
+        $sdkUrl->setId(100);
+
+        $this->urlService->expects($this->once())
+            ->method('search')
+            ->with($this->equalTo($spaceId), $this->callback(function ($query) {
+                return $query->getFilter() === null;
+            }))
+            ->willReturn([$sdkUrl]);
+
+        $results = $this->gateway->listUrls($spaceId);
+
+        $this->assertCount(1, $results);
+        $this->assertInstanceOf(WebhookUrl::class, $results[0]);
+        $this->assertEquals(100, $results[0]->id);
     }
 
     /**
@@ -157,76 +258,26 @@ class WebhookManagementGatewayTest extends TestCase
         $this->gateway->updateListener($spaceId, $id, $entityEnum, [$newState]);
     }
 
-    public function testDeleteUrl(): void
-    {
-        $this->urlService->expects($this->once())->method('delete')->with(1, 100);
-        $this->gateway->deleteUrl(1, 100);
-    }
-
-    public function testDeleteListener(): void
-    {
-        $this->listenerService->expects($this->once())->method('delete')->with(1, 200);
-        $this->gateway->deleteListener(1, 200);
-    }
-
-    /**
-     * Tests that getWebhookListeners returns typed WebhookListener DTOs
-     * instead of raw SDK objects.
-     */
-    public function testGetWebhookListeners(): void
+    public function testUpdateUrl(): void
     {
         $spaceId = 1;
-        $urlId = 100;
+        $id = 100;
+        $newUrl = 'http://updated.com';
 
-        $listener = new SdkWebhookListener();
-        $listener->setId(200);
-        $listener->setName('Test Listener');
+        $currentUrl = new SdkWebhookUrl();
+        $currentUrl->setId($id);
+        $currentUrl->setVersion(10);
 
-        $this->listenerService->expects($this->once())
-            ->method('search')
-            ->with($this->equalTo($spaceId), $this->callback(function ($query) use ($urlId) {
-                $filter = $query->getFilter();
-                return $filter instanceof EntityQueryFilter &&
-                    $filter->getFieldName() === 'url.id' &&
-                    $filter->getValue() === $urlId;
-            }))
-            ->willReturn([$listener]);
-
-        $results = $this->gateway->getWebhookListeners($spaceId, $urlId);
-
-        $this->assertCount(1, $results);
-        // Assert the returned object is a domain DTO, not an SDK object
-        $this->assertInstanceOf(WebhookListener::class, $results[0]);
-        $this->assertEquals(200, $results[0]->id);
-        $this->assertEquals('Test Listener', $results[0]->name);
-    }
-
-    /**
-     * Tests that getUrl reads a single webhook URL from SDK v1
-     * and returns a typed WebhookUrl DTO.
-     */
-    public function testGetUrl(): void
-    {
-        $spaceId = 1;
-        $webhookUrlId = 100;
-
-        $sdkUrl = new SdkWebhookUrl();
-        $sdkUrl->setId($webhookUrlId);
-        $sdkUrl->setName('Test URL');
-        $sdkUrl->setUrl('http://test.com');
-        $sdkUrl->setState(CreationEntityState::ACTIVE);
+        $this->urlService->expects($this->once())->method('read')->with($spaceId, $id)->willReturn($currentUrl);
 
         $this->urlService->expects($this->once())
-            ->method('read')
-            ->with($spaceId, $webhookUrlId)
-            ->willReturn($sdkUrl);
+            ->method('update')
+            ->with($this->equalTo($spaceId), $this->callback(function (WebhookUrlUpdate $update) use ($id, $newUrl) {
+                return $update->getId() === $id &&
+                    $update->getUrl() === $newUrl &&
+                    $update->getVersion() === 10;
+            }));
 
-        $result = $this->gateway->getUrl($spaceId, $webhookUrlId);
-
-        // Assert the returned object is a domain DTO, not an SDK object
-        $this->assertInstanceOf(WebhookUrl::class, $result);
-        $this->assertEquals($webhookUrlId, $result->id);
-        $this->assertEquals('Test URL', $result->name);
-        $this->assertEquals('http://test.com', $result->url);
+        $this->gateway->updateUrl($spaceId, $id, $newUrl);
     }
 }

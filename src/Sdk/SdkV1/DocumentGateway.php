@@ -8,24 +8,25 @@ use Wallee\PluginCore\Document\DocumentGatewayInterface;
 use Wallee\PluginCore\Document\RenderedDocument;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\Sdk\Model\RenderedDocument as SdkRenderedDocument;
-use Wallee\Sdk\Service\RefundService as SdkRefundService;
-use Wallee\Sdk\Service\TransactionInvoiceService as SdkTransactionInvoiceService;
-use Wallee\Sdk\Service\TransactionService as SdkTransactionService;
+use Wallee\PluginCore\Transaction\Exception\TransactionException;
+use Wallee\Sdk\Model\CriteriaOperator as SdkCriteriaOperator;
 use Wallee\Sdk\Model\EntityQuery as SdkEntityQuery;
 use Wallee\Sdk\Model\EntityQueryFilter as SdkEntityQueryFilter;
 use Wallee\Sdk\Model\EntityQueryFilterType as SdkEntityQueryFilterType;
-use Wallee\Sdk\Model\CriteriaOperator as SdkCriteriaOperator;
+use Wallee\Sdk\Model\RenderedDocument as SdkRenderedDocument;
 use Wallee\Sdk\Model\TransactionInvoiceState as SdkTransactionInvoiceState;
+use Wallee\Sdk\Service\RefundService as SdkRefundService;
+use Wallee\Sdk\Service\TransactionInvoiceService as SdkTransactionInvoiceService;
+use Wallee\Sdk\Service\TransactionService as SdkTransactionService;
 
 /**
  * Gateway for retrieving documents using the SDK.
  */
 class DocumentGateway implements DocumentGatewayInterface
 {
+    private SdkRefundService $refundService;
     private SdkTransactionInvoiceService $transactionInvoiceService;
     private SdkTransactionService $transactionService;
-    private SdkRefundService $refundService;
 
     public function __construct(
         private readonly SdkProvider $sdkProvider,
@@ -37,13 +38,31 @@ class DocumentGateway implements DocumentGatewayInterface
     }
 
     /**
+     * Helper to create filter.
+     *
+     * @param string $fieldName
+     * @param mixed $value
+     * @param string $operator
+     * @return SdkEntityQueryFilter
+     */
+    private function createFilter(string $fieldName, mixed $value, string $operator = SdkCriteriaOperator::EQUALS): SdkEntityQueryFilter
+    {
+        $filter = new SdkEntityQueryFilter();
+        $filter->setType(SdkEntityQueryFilterType::LEAF);
+        $filter->setOperator($operator);
+        $filter->setFieldName($fieldName);
+        $filter->setValue($value);
+        return $filter;
+    }
+
+    /**
      * @inheritDoc
      */
     public function getInvoice(int $spaceId, int $transactionId): RenderedDocument
     {
         $this->logger->debug("DocumentGateway: Fetching invoice for transaction.", [
             'spaceId' => $spaceId,
-            'transactionId' => $transactionId
+            'transactionId' => $transactionId,
         ]);
 
         try {
@@ -54,7 +73,7 @@ class DocumentGateway implements DocumentGatewayInterface
             $filter->setType(SdkEntityQueryFilterType::_AND);
             $filter->setChildren([
                 $this->createFilter('completion.lineItemVersion.transaction.id', $transactionId),
-                $this->createFilter('state', SdkTransactionInvoiceState::CANCELED, SdkCriteriaOperator::NOT_EQUALS)
+                $this->createFilter('state', SdkTransactionInvoiceState::CANCELED, SdkCriteriaOperator::NOT_EQUALS),
             ]);
             $query->setFilter($filter);
             $query->setNumberOfEntities(1);
@@ -72,7 +91,7 @@ class DocumentGateway implements DocumentGatewayInterface
                 // So I will stick with the search logic as it is more robust for "Invoice Service".
 
                 // If no invoice found, check if there is one in CANCELED state or just throw.
-                throw new \Exception("No invoice found for transaction $transactionId");
+                throw new TransactionException("No invoice found for transaction $transactionId");
             }
 
             $invoice = $invoices[0];
@@ -92,7 +111,7 @@ class DocumentGateway implements DocumentGatewayInterface
     {
         $this->logger->debug("DocumentGateway: Fetching packing slip.", [
             'spaceId' => $spaceId,
-            'transactionId' => $transactionId
+            'transactionId' => $transactionId,
         ]);
 
         try {
@@ -111,7 +130,7 @@ class DocumentGateway implements DocumentGatewayInterface
     {
         $this->logger->debug("DocumentGateway: Fetching refund credit note.", [
             'spaceId' => $spaceId,
-            'refundId' => $refundId
+            'refundId' => $refundId,
         ]);
 
         try {
@@ -134,25 +153,7 @@ class DocumentGateway implements DocumentGatewayInterface
         return new RenderedDocument(
             title: $sdkDocument->getTitle(),
             mimeType: $sdkDocument->getMimeType(),
-            data: base64_decode($sdkDocument->getData()) // Usually SDK returns base64 string, needing decode
+            data: base64_decode($sdkDocument->getData(), true), // Usually SDK returns base64 string, needing decode
         );
-    }
-
-    /**
-     * Helper to create filter.
-     * 
-     * @param string $fieldName
-     * @param mixed $value
-     * @param string $operator
-     * @return SdkEntityQueryFilter
-     */
-    private function createFilter(string $fieldName, mixed $value, string $operator = SdkCriteriaOperator::EQUALS): SdkEntityQueryFilter
-    {
-        $filter = new SdkEntityQueryFilter();
-        $filter->setType(SdkEntityQueryFilterType::LEAF);
-        $filter->setOperator($operator);
-        $filter->setFieldName($fieldName);
-        $filter->setValue($value);
-        return $filter;
     }
 }

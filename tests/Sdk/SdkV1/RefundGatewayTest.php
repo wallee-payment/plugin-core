@@ -21,9 +21,9 @@ use Wallee\Sdk\Service\RefundService as SdkRefundService;
 class RefundGatewayTest extends TestCase
 {
     private RefundGateway $gateway;
-    private MockObject|SdkProvider $sdkProvider;
     private MockObject|LoggerInterface $logger;
     private MockObject|SdkRefundService $refundService;
+    private MockObject|SdkProvider $sdkProvider;
 
     protected function setUp(): void
     {
@@ -73,7 +73,7 @@ class RefundGatewayTest extends TestCase
             10.0,
             'ref-1',
             RefundType::MERCHANT_INITIATED_ONLINE,
-            []
+            [],
         );
 
         $sdkRefund = new SdkRefund();

@@ -1,9 +1,11 @@
 # Documentation Index
 
-This directory contains the documentation for various modules of plugin-core.
+This directory contains the documentation for the various modules of the Wallee Plugin Core library.
 
-- [Completion](./Completion/)
-- [Checkout](./Checkout/)
-- [Recurring](./Recurring/)
-- [Refund](./Refund/)
-- [Webhook](./Webhook/)
+- [Checkout](./Checkout/): Handling the initial payment process and transaction creation.
+- [Completion](./Completion/): Finalizing authorized transactions (Capture and Void).
+- [Document](./Document/): Retrieving official PDF documents (Invoices, Packing Slips, Credit Notes).
+- [Payment Method](./PaymentMethod/): Retrieving and synchronizing Wallee Portal configurations for available payment methods.
+- [Recurring](./Recurring/): Implementing tokenized Merchant Initiated Transactions (MIT).
+- [Refund](./Refund/): Managing full and partial refunds.
+- [Webhook](./Webhook/): Guide for handling asynchronous Wallee Portal events (Processing and Management).

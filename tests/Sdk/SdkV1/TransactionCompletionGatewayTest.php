@@ -8,8 +8,8 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\SdkV1\TransactionCompletionGateway;
-use Wallee\PluginCore\Transaction\Completion\TransactionCompletion;
 use Wallee\PluginCore\Transaction\Completion\State;
+use Wallee\PluginCore\Transaction\Completion\TransactionCompletion;
 use Wallee\Sdk\Model\TransactionCompletion as SdkTransactionCompletion;
 use Wallee\Sdk\Model\TransactionCompletionState;
 use Wallee\Sdk\Model\TransactionVoid as SdkTransactionVoid;
@@ -19,9 +19,9 @@ use Wallee\Sdk\Service\TransactionVoidService as SdkTransactionVoidService;
 
 class TransactionCompletionGatewayTest extends TestCase
 {
+    private MockObject|SdkTransactionCompletionService $completionService;
     private TransactionCompletionGateway $gateway;
     private MockObject|SdkProvider $sdkProvider;
-    private MockObject|SdkTransactionCompletionService $completionService;
     private MockObject|SdkTransactionVoidService $voidService;
 
     protected function setUp(): void

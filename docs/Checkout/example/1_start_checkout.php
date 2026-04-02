@@ -23,19 +23,19 @@ $settings = $common['settings'];
 /** @var FilePersistence $persistence */
 $persistence = $common['persistence'];
 
-// 1. Initialize Services
+// Initialize the core services needed for the transaction.
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $consistency = new LineItemConsistencyService($settings, $logger);
 $service = new TransactionService($gateway, $consistency, $logger);
 
-// 2. Initialize Session (Clean Slate)
+// Initialize the session by clearing any existing session data.
 $sessionFile = __DIR__ . '/session.json';
 if (file_exists($sessionFile)) {
     unlink($sessionFile);
     echo "Refreshed Session (Deleted old session.json)\n";
 }
 
-// 3. Build Initial Cart
+// Build the initial cart with a sample product.
 echo "Building Cart (1x Swiss Watch)...\n";
 
 $context = new TransactionContext();
@@ -70,12 +70,12 @@ $item->addTax(new Tax('VAT', 7.7));
 $context->lineItems = [$item];
 $context->expectedGrandTotal = 150.00;
 
-// 4. Execute Upsert
+// Execute the upsert operation to create the transaction in the portal.
 echo "Sending to Wallee...\n";
 
 try {
-    // 4. Execute Upsert
-    // $persistence implements TransactionPersistenceInterface (added via Common/FilePersistence.php)
+    // Execute the upsert operation.
+    // The persistence object is used to store the transaction ID for subsequent steps.
     $transaction = $service->upsert($context, $persistence);
 
     echo "\n[SUCCESS] Transaction Created: " . $transaction->id . "\n";

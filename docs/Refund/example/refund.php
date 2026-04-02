@@ -6,9 +6,9 @@ namespace MyPlugin\ExampleRefundImplementation;
  * Refund Example
  *
  * This script demonstrates the Refund functionality:
- * 1. Validates refund (fails if amount too high).
- * 2. Creating a Partial Refund.
- * 3. Creating a Full Refund (of remaining amount).
+ * - Validates refund (fails if amount too high).
+ * - Creating a Partial Refund.
+ * - Creating a Full Refund (of remaining amount).
  *
  * USAGE:
  * php refund.php [transaction_id]
@@ -17,7 +17,6 @@ namespace MyPlugin\ExampleRefundImplementation;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Refund\context\RefundContext as ContextRefundContext;
-// Check import for RefundContext. Original was: use Wallee\PluginCore\Refund\RefundContext;
 use Wallee\PluginCore\Refund\RefundContext;
 use Wallee\PluginCore\Refund\RefundService;
 use Wallee\PluginCore\Refund\Type;
@@ -35,7 +34,7 @@ $spaceId = $common['spaceId'];
 $sdkProvider = $common['sdkProvider'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// 1. Load Transaction ID
+// Load Transaction ID from command line arguments or environment.
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
@@ -44,7 +43,7 @@ try {
 
 echo "Operating on Transaction ID: $transactionId\n";
 
-// 2. Setup Services
+// Setup required services.
 $transactionGateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $refundGateway = new RefundGateway($sdkProvider, $logger);
 $consistency = new LineItemConsistencyService($settings, $logger);
@@ -79,7 +78,7 @@ function list_refunds(RefundService $service, int $spaceId, int $transactionId)
     }
 }
 
-// 3. Load Transaction to see current state
+// Load the current transaction to check its authorized and refunded amounts.
 try {
     $transaction = $transactionService->getTransaction((int)$spaceId, $transactionId);
     echo "Current Authorized Amount: " . $transaction->authorizedAmount . "\n";
@@ -96,7 +95,7 @@ try {
     exit("Failed to load transaction: " . $e->getMessage() . "\n");
 }
 
-// 4. TEST 1: Validation Error (Over-refund)
+// Test validation error by attempting to refund more than the authorized amount.
 echo "\n--- TEST 1: Validation Error (Refund Amount > Authorized) ---\n";
 $excessiveAmount = $transaction->authorizedAmount + 10.0;
 // Note: RefundContext signature check. Original script used named args.
@@ -117,7 +116,7 @@ try {
     echo "FAILED: Caught unexpected exception: " . $e->getMessage() . "\n";
 }
 
-// 5. TEST 2: Partial Refund (Dynamic)
+// Test a partial refund for a specific line item.
 echo "\n--- TEST 2: Partial Refund (On Swiss Watch) ---\n";
 
 // Find 'sku-123'
@@ -170,7 +169,7 @@ if ($targetItem) {
     echo "SKIPPED: Target item 'sku-123' not found in transaction.\n";
 }
 
-// 6. TEST 3: Full Remaining Refund
+// Test refunding the entire remaining balance of the transaction.
 echo "\n--- TEST 3: Refund Remaining Balance ---\n";
 // Reload transaction
 $transaction = $transactionService->getTransaction((int)$spaceId, $transactionId);

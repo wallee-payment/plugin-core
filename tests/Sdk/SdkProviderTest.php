@@ -12,8 +12,8 @@ use Wallee\Sdk\Service\TransactionService; // Example service
 
 class SdkProviderTest extends TestCase
 {
-    private Settings $settingsMock;
     private SdkProvider $sdkProvider;
+    private Settings $settingsMock;
 
     protected function setUp(): void
     {

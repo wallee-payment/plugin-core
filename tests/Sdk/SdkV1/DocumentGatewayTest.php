@@ -19,11 +19,11 @@ use Wallee\Sdk\Service\TransactionService as SdkTransactionService;
 class DocumentGatewayTest extends TestCase
 {
     private DocumentGateway $gateway;
-    private MockObject|SdkProvider $sdkProvider;
-    private MockObject|LoggerInterface $logger;
     private MockObject|SdkTransactionInvoiceService $invoiceService;
-    private MockObject|SdkTransactionService $transactionService;
+    private MockObject|LoggerInterface $logger;
     private MockObject|SdkRefundService $refundService;
+    private MockObject|SdkProvider $sdkProvider;
+    private MockObject|SdkTransactionService $transactionService;
 
     protected function setUp(): void
     {

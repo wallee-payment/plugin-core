@@ -3,6 +3,7 @@
 namespace MyPlugin\ExampleCheckoutImplementation;
 
 use Wallee\PluginCore\Examples\Common\FilePersistence;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Render\IntegratedPaymentRenderService;
 use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
@@ -23,22 +24,23 @@ $settings = $common['settings'];
 /** @var FilePersistence $persistence */
 $persistence = $common['persistence'];
 
-// 1. Services
+// Initialize required services.
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $consistency = new LineItemConsistencyService($settings, $logger);
 $service = new TransactionService($gateway, $consistency, $logger);
 $renderService = new IntegratedPaymentRenderService();
 
-// 2. Load Session
-$transactionId = $persistence->get('transaction_id');
-
-if (!$transactionId) {
+// Retrieve the transaction ID from the persistence storage to resume the session.
+// We use the TransactionIdLoader to retrieve the ID from CLI arguments or the session.json file.
+try {
+    $transactionId = TransactionIdLoader::load($argv);
+} catch (\Exception $e) {
     exit("ERROR: No active session. Run '1_start_checkout.php' first.\n");
 }
 
 echo "Confirming Checkout for Transaction ID: $transactionId (Mode: Lightbox)\n";
 
-// 3. Generate Simulation
+// Generate the checkout simulation.
 try {
     $mode = 'lightbox';
 

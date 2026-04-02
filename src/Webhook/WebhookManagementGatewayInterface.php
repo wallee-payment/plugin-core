@@ -14,16 +14,6 @@ use Wallee\PluginCore\Webhook\Enum\WebhookListener as WebhookListenerEnum;
 interface WebhookManagementGatewayInterface
 {
     /**
-     * Creates a webhook URL definition in the portal.
-     *
-     * @param int $spaceId The space ID where the webhook URL is defined.
-     * @param string $url The actual URL endpoint.
-     * @param string $name The name for the webhook URL definition.
-     * @return int The ID of the created Webhook URL.
-     */
-    public function createUrl(int $spaceId, string $url, string $name): int;
-
-    /**
      * Creates a webhook listener that links an entity state change to a webhook URL.
      *
      * @param int $spaceId The space ID.
@@ -34,16 +24,76 @@ interface WebhookManagementGatewayInterface
      * @return int The ID of the created Webhook Listener.
      */
     public function createListener(int $spaceId, int $webhookUrlId, WebhookListenerEnum $entity, array $eventStates, string $name): int;
+    /**
+     * Creates a webhook URL definition in the portal.
+     *
+     * @param int $spaceId The space ID where the webhook URL is defined.
+     * @param string $url The actual URL endpoint.
+     * @param string $name The name for the webhook URL definition.
+     * @return int The ID of the created Webhook URL.
+     */
+    public function createUrl(int $spaceId, string $url, string $name): int;
 
     /**
-     * Updates an existing webhook URL definition.
+     * Deletes a webhook listener.
      *
      * @param int $spaceId The space ID.
-     * @param int $webhookUrlId The ID of the webhook URL definition to update.
-     * @param string $newUrl The new URL endpoint.
+     * @param int $listenerId The ID of the listener to delete.
      * @return void
      */
-    public function updateUrl(int $spaceId, int $webhookUrlId, string $newUrl): void;
+    public function deleteListener(int $spaceId, int $listenerId): void;
+
+    /**
+     * Deletes a webhook URL definition.
+     *
+     * @param int $spaceId The space ID.
+     * @param int $webhookUrlId The ID of the webhook URL definition to delete.
+     * @return void
+     */
+    public function deleteUrl(int $spaceId, int $webhookUrlId): void;
+
+    /**
+     * Gets a specific webhook URL definition.
+     *
+     * @param int $spaceId
+     * @param int $webhookUrlId
+     * @return WebhookUrl
+     */
+    public function getUrl(int $spaceId, int $webhookUrlId): WebhookUrl;
+
+    /**
+     * Gets all webhook listeners for a space, filtered by URL.
+     *
+     * @param int $spaceId
+     * @param int $urlId
+     * @return WebhookListener[]
+     */
+    public function getWebhookListeners(int $spaceId, int $urlId): array;
+
+    /**
+     * Gets all webhook URLs for a space.
+     *
+     * @param int $spaceId
+     * @param string|null $state
+     * @return WebhookUrl[]
+     */
+    public function getWebhookUrls(int $spaceId, ?string $state = 'ACTIVE'): array;
+
+    /**
+     * Lists webhook listeners in the portal.
+     *
+     * @param int $spaceId
+     * @return WebhookListener[]
+     */
+    public function listListeners(int $spaceId): array;
+
+    /**
+     * Lists webhook URL definitions in the portal.
+     *
+     * @param int $spaceId
+     * @return WebhookUrl[]
+     */
+    public function listUrls(int $spaceId): array;
 
     /**
      * Updates an existing webhook listener.
@@ -57,62 +107,12 @@ interface WebhookManagementGatewayInterface
     public function updateListener(int $spaceId, int $listenerId, WebhookListenerEnum $entity, array $eventStates): void;
 
     /**
-     * Deletes a webhook URL definition.
+     * Updates an existing webhook URL definition.
      *
      * @param int $spaceId The space ID.
-     * @param int $webhookUrlId The ID of the webhook URL definition to delete.
+     * @param int $webhookUrlId The ID of the webhook URL definition to update.
+     * @param string $newUrl The new URL endpoint.
      * @return void
      */
-    public function deleteUrl(int $spaceId, int $webhookUrlId): void;
-
-    /**
-     * Deletes a webhook listener.
-     *
-     * @param int $spaceId The space ID.
-     * @param int $listenerId The ID of the listener to delete.
-     * @return void
-     */
-    public function deleteListener(int $spaceId, int $listenerId): void;
-
-    /**
-     * Lists webhook URL definitions in the portal.
-     *
-     * @param int $spaceId
-     * @return WebhookUrl[]
-     */
-    public function listUrls(int $spaceId): array;
-
-    /**
-     * Lists webhook listeners in the portal.
-     *
-     * @param int $spaceId
-     * @return WebhookListener[]
-     */
-    public function listListeners(int $spaceId): array;
-
-    /**
-     * Gets all webhook URLs for a space.
-     *
-     * @param int $spaceId
-     * @return WebhookUrl[]
-     */
-    public function getWebhookUrls(int $spaceId): array;
-
-    /**
-     * Gets all webhook listeners for a space, filtered by URL.
-     *
-     * @param int $spaceId
-     * @param int $urlId
-     * @return WebhookListener[]
-     */
-    public function getWebhookListeners(int $spaceId, int $urlId): array;
-
-    /**
-     * Gets a specific webhook URL definition.
-     *
-     * @param int $spaceId
-     * @param int $webhookUrlId
-     * @return WebhookUrl
-     */
-    public function getUrl(int $spaceId, int $webhookUrlId): WebhookUrl;
+    public function updateUrl(int $spaceId, int $webhookUrlId, string $newUrl): void;
 }

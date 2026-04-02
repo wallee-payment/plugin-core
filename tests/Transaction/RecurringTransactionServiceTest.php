@@ -6,23 +6,23 @@ namespace Wallee\PluginCore\Tests\Transaction;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\Log\LoggerInterface;
+use Wallee\PluginCore\Token\Token;
+use Wallee\PluginCore\Token\TokenService;
 use Wallee\PluginCore\Transaction\RecurringTransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\RecurringTransactionService;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionService;
-use Wallee\PluginCore\Token\TokenService;
-use Wallee\PluginCore\Token\Token;
-use Wallee\PluginCore\Address\Address;
 
 class RecurringTransactionServiceTest extends TestCase
 {
-    private RecurringTransactionService $service;
-    private MockObject|TransactionService $transactionService;
     private MockObject|RecurringTransactionGatewayInterface $gateway;
-    private MockObject|TokenService $tokenService;
     private MockObject|LoggerInterface $logger;
+    private RecurringTransactionService $service;
+    private MockObject|TokenService $tokenService;
+    private MockObject|TransactionService $transactionService;
 
     protected function setUp(): void
     {
@@ -34,7 +34,7 @@ class RecurringTransactionServiceTest extends TestCase
             $this->transactionService,
             $this->gateway,
             $this->tokenService,
-            $this->logger
+            $this->logger,
         );
     }
 

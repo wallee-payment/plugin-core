@@ -8,11 +8,8 @@ use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting as PaymentMethodSortingEnum;
-use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Exception\TransactionTotalNegativeException;
-use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
-use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 
 class TransactionService
 {
@@ -20,7 +17,8 @@ class TransactionService
         private readonly TransactionGatewayInterface $gateway,
         private readonly LineItemConsistencyService $consistencyService,
         private readonly LoggerInterface $logger,
-    ) {}
+    ) {
+    }
 
     /**
      * Creates a new transaction.
@@ -34,10 +32,10 @@ class TransactionService
         try {
             $this->logger->debug(sprintf(
                 "Creating new transaction for Merchant Ref: %s",
-                isset($context->merchantReference) ? $context->merchantReference : 'unknown'
+                $context->merchantReference ?? 'unknown',
             ));
 
-            if (isset($context->expectedGrandTotal) && $context->expectedGrandTotal < -0.00000001) {
+            if (($context->expectedGrandTotal ?? 0.0) < -0.00000001) {
                 $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems);
                 $context->expectedGrandTotal = 0.0;
             }
@@ -55,11 +53,11 @@ class TransactionService
             $this->logger->debug(sprintf(
                 "Transaction created. ID: %s, State: %s",
                 $result->id ?? 'unknown',
-                isset($result->state) ? $result->state->value : 'unknown'
+                $result->state?->value ?? 'unknown',
             ));
             return $result;
         } catch (\Throwable $e) {
-            $this->logger->error("Create failed: " . $e->getMessage());
+            $this->logger->error("Create failed: {$e->getMessage()}");
             if ($e instanceof TransactionException) {
                 throw $e;
             }
@@ -98,6 +96,21 @@ class TransactionService
         return $methods;
     }
 
+    /**
+     * Gets the latest transactions.
+     *
+     * @param int $spaceId The space ID.
+     * @param int $limit The number of transactions to retrieve (default: 10).
+     * @return Transaction[] The latest transactions.
+     */
+    public function getLatestTransactions(int $spaceId, int $limit = 10): array
+    {
+        $criteria = new TransactionSearchCriteria();
+        $criteria->limit = $limit;
+        $criteria->sortField = 'id';
+        $criteria->sortOrder = 'DESC';
+        return $this->searchTransactions($spaceId, $criteria);
+    }
 
     /**
      * Gets the payment URL.
@@ -121,10 +134,22 @@ class TransactionService
      */
     public function getTransaction(int $spaceId, int $transactionId): Transaction
     {
-        $this->logger->debug("Fetching Transaction $transactionId in Space $spaceId.");
-        return $this->gateway->get($spaceId, $transactionId);
+        $transaction = $this->gateway->get($spaceId, $transactionId);
+        $this->logger->debug("Service: Transaction found.", ['state' => $transaction->state->value]);
+        return $transaction;
     }
 
+    /**
+     * Searches for transactions matching the criteria.
+     *
+     * @param int $spaceId The space ID.
+     * @param TransactionSearchCriteria $criteria The search criteria.
+     * @return Transaction[] The matching transactions.
+     */
+    public function searchTransactions(int $spaceId, TransactionSearchCriteria $criteria): array
+    {
+        return $this->gateway->search($spaceId, $criteria);
+    }
 
     /**
      * Updates an existing transaction.
@@ -150,7 +175,7 @@ class TransactionService
             $existing = $this->gateway->find($context->spaceId, $context->transactionId);
             if (!$existing) {
                 $this->logger->error("Update failed: Transaction {$context->transactionId} not found.");
-                throw new \Exception("Transaction not found for update.");
+                throw new TransactionException("Transaction not found for update.");
             }
 
             $result = $this->gateway->update($existing->id, $existing->version, $context);
@@ -158,11 +183,10 @@ class TransactionService
             $this->logger->debug("Transaction {$result->id} updated. State: {$result->state->value}");
             return $result;
         } catch (\Throwable $e) {
-            $this->logger->error("Update failed for Transaction {$context->transactionId}: " . $e->getMessage());
+            $this->logger->error("Update failed for Transaction {$context->transactionId}: {$e->getMessage()}");
             throw $e;
         }
     }
-
 
     /**
      * Upserts a transaction (Create or Update).
@@ -180,21 +204,21 @@ class TransactionService
             $result = $this->createTransaction($context);
         } else {
             try {
-                // 1. READ: Returns a DOMAIN Object (Transaction)
+                // READ: Returns a DOMAIN Object (Transaction)
                 $existingTransaction = $this->gateway->find($context->spaceId, $context->transactionId);
 
-                // 2. CHECK: Use Domain Enum
+                // CHECK: Use Domain Enum
                 if (!$existingTransaction || $existingTransaction->state !== State::PENDING) {
                     // Throwing here forces the catch block to trigger the fallback
-                    throw new \Exception("Transaction not PENDING or not found.");
+                    throw new TransactionException("Transaction not PENDING or not found.");
                 }
 
-                if (isset($context->expectedGrandTotal) && $context->expectedGrandTotal < -0.00000001) {
+                if (($context->expectedGrandTotal ?? 0.0) < -0.00000001) {
                     $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems);
                     $context->expectedGrandTotal = 0.0;
                 }
 
-                // 3. WRITE: Pass Primitives (ID and Version)
+                // WRITE: Pass Primitives (ID and Version)
                 $result = $this->gateway->update(
                     $existingTransaction->id,
                     $existingTransaction->version,
@@ -214,39 +238,12 @@ class TransactionService
                 $persistenceStrategy->persist($result->id);
                 $this->logger->debug("Persisted new transaction ID {$result->id} via strategy.");
             } catch (\Throwable $e) {
-                $this->logger->critical("Transaction created ({$result->id}) but Persistence Strategy failed: " . $e->getMessage());
+                $this->logger->critical("Transaction created ({$result->id}) but Persistence Strategy failed: {$e->getMessage()}");
                 throw new TransactionException("System Error: Could not save transaction session.", 0, $e);
             }
         }
 
         return $result;
-    }
-    /**
-     * Searches for transactions matching the criteria.
-     *
-     * @param int $spaceId The space ID.
-     * @param TransactionSearchCriteria $criteria The search criteria.
-     * @return Transaction[] The matching transactions.
-     */
-    public function searchTransactions(int $spaceId, TransactionSearchCriteria $criteria): array
-    {
-        return $this->gateway->search($spaceId, $criteria);
-    }
-
-    /**
-     * Gets the latest transactions.
-     *
-     * @param int $spaceId The space ID.
-     * @param int $limit The number of transactions to retrieve (default: 10).
-     * @return Transaction[] The latest transactions.
-     */
-    public function getLatestTransactions(int $spaceId, int $limit = 10): array
-    {
-        $criteria = new TransactionSearchCriteria();
-        $criteria->limit = $limit;
-        $criteria->sortField = 'id';
-        $criteria->sortOrder = 'DESC';
-        return $this->searchTransactions($spaceId, $criteria);
     }
 
     /**

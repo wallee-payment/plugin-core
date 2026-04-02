@@ -13,10 +13,10 @@ use Wallee\Sdk\Service\WebhookEncryptionService as SdkWebhookEncryptionService;
 
 class WebhookSignatureGatewayTest extends TestCase
 {
-    private WebhookSignatureGateway $gateway;
-    private MockObject|SdkProvider $sdkProvider;
-    private MockObject|LoggerInterface $logger;
     private MockObject|SdkWebhookEncryptionService $encryptionService;
+    private WebhookSignatureGateway $gateway;
+    private MockObject|LoggerInterface $logger;
+    private MockObject|SdkProvider $sdkProvider;
 
     protected function setUp(): void
     {
@@ -31,19 +31,6 @@ class WebhookSignatureGatewayTest extends TestCase
         $this->gateway = new WebhookSignatureGateway($this->sdkProvider, $this->logger);
     }
 
-    public function testValidateReturnsTrueForValidSignature(): void
-    {
-        $header = 'valid-sig';
-        $payload = 'data';
-
-        $this->encryptionService->expects($this->once())
-            ->method('isContentValid')
-            ->with($header, $payload)
-            ->willReturn(true);
-
-        $this->assertTrue($this->gateway->validate($header, $payload));
-    }
-
     public function testValidateReturnsFalseForInvalidSignature(): void
     {
         $header = 'invalid-sig';
@@ -55,5 +42,18 @@ class WebhookSignatureGatewayTest extends TestCase
             ->willThrowException(new \Exception("Invalid signature"));
 
         $this->assertFalse($this->gateway->validate($header, $payload));
+    }
+
+    public function testValidateReturnsTrueForValidSignature(): void
+    {
+        $header = 'valid-sig';
+        $payload = 'data';
+
+        $this->encryptionService->expects($this->once())
+            ->method('isContentValid')
+            ->with($header, $payload)
+            ->willReturn(true);
+
+        $this->assertTrue($this->gateway->validate($header, $payload));
     }
 }

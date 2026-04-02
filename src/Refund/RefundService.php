@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Refund;
 
+use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionService;
-use Wallee\PluginCore\LineItem\LineItem;
 
 class RefundService
 {
@@ -16,7 +16,8 @@ class RefundService
         private readonly RefundGatewayInterface $gateway,
         private readonly TransactionService $transactionService,
         private readonly LoggerInterface $logger,
-    ) {}
+    ) {
+    }
 
     /**
      * Creates a refund for a transaction.
@@ -31,22 +32,31 @@ class RefundService
     {
         $this->logger->debug("Starting refund process for Transaction {$context->transactionId} in Space $spaceId.");
 
-        // 1. Load Transaction
+        // Load the original transaction to verify refund possibility.
         $originalTransaction = $this->transactionService->getTransaction($spaceId, $context->transactionId);
 
-        // 2. Validate
+        // Validate the refund context against the original transaction data.
         $this->validateRefund($originalTransaction, $context);
 
-        // 3. Execute
+        // Execute the refund operation via the gateway.
         return $this->gateway->refund($spaceId, $context);
     }
 
     /**
-     * @return Refund[]
+     * Finds a line item by its unique ID.
+     *
+     * @param LineItem[] $lineItems
+     * @param string $uniqueId
+     * @return LineItem|null
      */
-    public function getRefunds(int $spaceId, int $transactionId): array
+    private function findLineItem(array $lineItems, string $uniqueId): ?LineItem
     {
-        return $this->gateway->findByTransaction($spaceId, $transactionId);
+        foreach ($lineItems as $item) {
+            if ($item->uniqueId === $uniqueId) {
+                return $item;
+            }
+        }
+        return null;
     }
 
     /**
@@ -71,6 +81,14 @@ class RefundService
     }
 
     /**
+     * @return Refund[]
+     */
+    public function getRefunds(int $spaceId, int $transactionId): array
+    {
+        return $this->gateway->findByTransaction($spaceId, $transactionId);
+    }
+
+    /**
      * Validates the refund request against the original transaction.
      *
      * @param Transaction $originalTransaction
@@ -84,9 +102,8 @@ class RefundService
         $refundedAmount = $originalTransaction->refundedAmount ?? 0.0;
         $remainingAmount = $authorizedAmount - $refundedAmount;
 
-        // Use a small epsilon for float comparison if necessary, but exact check usually favored in finance unless using bcmath.
-        // PHP float comparison issues: use round or epsilon. Since no bcmath library is mandated, simple comparison with awareness.
-        // Assuming strict "less than or equal"
+        // Compare the request amount against the remaining balance.
+        // We use a strict comparison here as refund amounts are typically handled as exact values.
 
         if ($context->amount > $remainingAmount) {
             $this->logger->error("Validation failed: Refund amount {$context->amount} exceeds remaining amount $remainingAmount.");
@@ -99,9 +116,9 @@ class RefundService
 
             foreach ($context->lineItems as $refundItem) {
                 // standardized access
-                $uId = $refundItem['uniqueId'] ?? $refundItem->uniqueId;
-                $quantity = (float)($refundItem['quantity'] ?? $refundItem->quantity);
-                $unitPriceReduction = (float)($refundItem['amount'] ?? $refundItem->amount); // Validated as UnitPriceReduction
+                $uId = $refundItem['uniqueId'];
+                $quantity = (float)$refundItem['quantity'];
+                $unitPriceReduction = (float)$refundItem['amount'];
 
                 $originalItem = $this->findLineItem($originalTransaction->lineItems, $uId);
 
@@ -109,7 +126,7 @@ class RefundService
                     throw new InvalidRefundException("Line item with Unique ID '$uId' not found in original transaction.");
                 }
 
-                // New strict validation logic
+                // Validate specific item types and amounts.
                 if ($originalItem->type === LineItem::TYPE_DISCOUNT) {
                     throw new InvalidRefundException("Cannot refund line item '{$uId}'. Discounts cannot be refunded.");
                 }
@@ -119,9 +136,8 @@ class RefundService
                 }
 
                 // Calculate implied reduction for this item
-                // Formula: (QuantityReturned * UnitPrice) + (RemainingQuantity * UnitPriceReduction)
-                // Note: We need the single Unit Price. LineItem usually has amountIncludingTax (Total).
-                // Assuming Unit Price = amountIncludingTax / quantity (if quantity > 0)
+                // Each item's reduction is calculated based on returned quantity and any price adjustments.
+                // We derive the unit price from the total amount as LineItems store the total.
                 $originalUnitPrice = 0.0;
                 if ($originalItem->quantity > 0) {
                     $originalUnitPrice = $originalItem->amountIncludingTax / $originalItem->quantity;
@@ -141,7 +157,7 @@ class RefundService
                         "Refund amount %.2f for item '%s' exceeds original item amount %.2f.",
                         $itemTotalReduction,
                         $uId,
-                        $originalItem->amountIncludingTax
+                        $originalItem->amountIncludingTax,
                     ));
                 }
 
@@ -154,19 +170,9 @@ class RefundService
                 throw new InvalidRefundException(sprintf(
                     "Consistency Error: Total provided refund amount (%.2f) does not match the sum of line item reductions (%.2f). Formula: (QtyReturned * UnitPrice) + (RemainingQty * UnitPriceReduction).",
                     $context->amount,
-                    $calculatedTotalReduction
+                    $calculatedTotalReduction,
                 ));
             }
         }
-    }
-
-    private function findLineItem(array $lineItems, string $uniqueId): ?LineItem
-    {
-        foreach ($lineItems as $item) {
-            if ($item->uniqueId === $uniqueId) {
-                return $item;
-            }
-        }
-        return null;
     }
 }

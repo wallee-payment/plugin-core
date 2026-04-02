@@ -2,21 +2,23 @@
 
 namespace Wallee\PluginCore\Tests;
 
-use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 
 class DataProviderTest extends TestCase
 {
     /**
      * This is the Data Provider.
      * It returns three sets of arguments for the test below.
+     *
+     * @return array<string, array{0: int, 1: int, 2: int}>
      */
     public static function additionProvider(): array
     {
         return [
             '1 plus 2 is 3'           => [1, 2, 3],
             '5 plus 5 is 10'          => [5, 5, 10],
-            'negative 1 plus 1 is 0'  => [-1, 1, 0]
+            'negative 1 plus 1 is 0'  => [-1, 1, 0],
         ];
     }
 

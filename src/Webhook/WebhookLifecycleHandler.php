@@ -21,19 +21,17 @@ interface WebhookLifecycleHandler
     /**
      * Returns a list of unique resource identifiers that must be locked.
      *
-     * @param WebhookListener $listener
+     * @param WebhookListenerEnum $listener
      * @param WebhookContext $context The full context (includes entityId and spaceId)
      * @return string[]
      */
     public function getLockableResources(WebhookListenerEnum $listener, WebhookContext $context): array;
+
     /**
-     * Called by the WebhookProcessor *before* the command is executed.
-     * This is the place to start a database transaction and acquire locks.
-     * It must re-check the local state to prevent race conditions.
-     *
-     * @return bool Returns true to proceed, or false to skip this step.
+     * Called by the WebhookProcessor if an exception or error occurs.
+     * This is the place to roll back the transaction and release locks.
      */
-    public function preProcess(WebhookListenerEnum $listener, WebhookContext $context): bool;
+    public function onFailure(WebhookListenerEnum $listener, WebhookContext $context, \Throwable $exception): void;
 
     /**
      * Called by the WebhookProcessor *after* the command executes successfully.
@@ -46,8 +44,11 @@ interface WebhookLifecycleHandler
     public function postProcess(WebhookListenerEnum $listener, WebhookContext $context, mixed $commandResult): void;
 
     /**
-     * Called by the WebhookProcessor if an exception or error occurs.
-     * This is the place to roll back the transaction and release locks.
+     * Called by the WebhookProcessor *before* the command is executed.
+     * This is the place to start a database transaction and acquire locks.
+     * It must re-check the local state to prevent race conditions.
+     *
+     * @return bool Returns true to proceed, or false to skip this step.
      */
-    public function onFailure(WebhookListenerEnum $listener, WebhookContext $context, \Throwable $exception): void;
+    public function preProcess(WebhookListenerEnum $listener, WebhookContext $context): bool;
 }

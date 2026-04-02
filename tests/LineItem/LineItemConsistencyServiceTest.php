@@ -17,7 +17,7 @@ class LineItemConsistencyServiceTest extends TestCase
 {
     private function createService(
         bool $enabled = true,
-        RoundingStrategy $strategy = RoundingStrategy::BY_LINE_ITEM
+        RoundingStrategy $strategy = RoundingStrategy::BY_LINE_ITEM,
     ): LineItemConsistencyService {
         $provider = $this->createMock(SettingsProviderInterface::class);
         $provider->method('getLineItemConsistencyEnabled')->willReturn($enabled);
@@ -31,57 +31,16 @@ class LineItemConsistencyServiceTest extends TestCase
         return new LineItemConsistencyService($settings, $logger);
     }
 
-    public function testPerfectMatchNeedsNoAdjustment(): void
+    public function testDisabledConsistencyThrowsExceptionOnMismatch(): void
     {
-        $service = $this->createService();
+        $service = $this->createService(false);
 
         $item = new LineItem();
-        $item->uniqueId = '1';
-        $item->sku = 'SKU1';
-        $item->name = 'Product';
-        $item->quantity = 1;
-        $item->amountIncludingTax = 10.00;
+        $item->amountIncludingTax = 9.99;
 
-        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
+        $this->expectException(LineItemConsistencyException::class);
 
-        $this->assertCount(1, $result);
-    }
-
-    public function testSmallDiscrepancyAddsAdjustment(): void
-    {
-        $service = $this->createService();
-
-        $item = new LineItem();
-        $item->uniqueId = '1';
-        $item->sku = 'SKU1';
-        $item->name = 'Product';
-        $item->quantity = 1;
-        $item->amountIncludingTax = 9.98;
-
-        // Expected 10.00, but item is 9.98 (Difference: 0.02)
-        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
-
-        $this->assertCount(2, $result);
-
-        $adjustment = end($result);
-        $this->assertEquals('rounding-adjustment', $adjustment->sku);
-        $this->assertEquals(0.02, $adjustment->amountIncludingTax);
-        $this->assertEquals(LineItem::TYPE_FEE, $adjustment->type);
-    }
-
-    public function testNegativeAdjustment(): void
-    {
-        $service = $this->createService();
-
-        $item = new LineItem();
-        $item->amountIncludingTax = 10.02;
-
-        // Expected 10.00, but item is 10.02 (Difference: -0.02)
-        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
-
-        $this->assertCount(2, $result);
-        $adjustment = end($result);
-        $this->assertEquals(-0.02, $adjustment->amountIncludingTax);
+        $service->ensureConsistency([$item], 10.00, 'CHF');
     }
 
     public function testLargeDiscrepancyThrowsException(): void
@@ -98,28 +57,34 @@ class LineItemConsistencyServiceTest extends TestCase
         $service->ensureConsistency([$item], 10.00, 'CHF');
     }
 
-    public function testDisabledConsistencyThrowsExceptionOnMismatch(): void
-    {
-        $service = $this->createService(false);
-
-        $item = new LineItem();
-        $item->amountIncludingTax = 9.99;
-
-        $this->expectException(LineItemConsistencyException::class);
-
-        $service->ensureConsistency([$item], 10.00, 'CHF');
-    }
-
-
-    public function testSanitizeNegativeLineItemsNoChangeForPositiveSum(): void
+    public function testNegativeAdjustment(): void
     {
         $service = $this->createService();
-        $item = new LineItem();
-        $item->amountIncludingTax = 100.00;
-        $item->type = LineItem::TYPE_PRODUCT;
 
-        $result = $service->sanitizeNegativeLineItems([$item]);
-        $this->assertEquals(100.00, $result[0]->amountIncludingTax);
+        $item = new LineItem();
+        $item->amountIncludingTax = 10.02;
+
+        // Expected 10.00, but item is 10.02 (Difference: -0.02)
+        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
+
+        $this->assertCount(2, $result);
+        $adjustment = end($result);
+        $this->assertEquals(-0.02, $adjustment->amountIncludingTax);
+    }
+    public function testPerfectMatchNeedsNoAdjustment(): void
+    {
+        $service = $this->createService();
+
+        $item = new LineItem();
+        $item->uniqueId = '1';
+        $item->sku = 'SKU1';
+        $item->name = 'Product';
+        $item->quantity = 1;
+        $item->amountIncludingTax = 10.00;
+
+        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
+
+        $this->assertCount(1, $result);
     }
 
     public function testSanitizeNegativeLineItemsAdjustsDiscount(): void
@@ -165,6 +130,18 @@ class LineItemConsistencyServiceTest extends TestCase
         $this->assertEquals(-50.00, $result[2]->amountIncludingTax);
     }
 
+
+    public function testSanitizeNegativeLineItemsNoChangeForPositiveSum(): void
+    {
+        $service = $this->createService();
+        $item = new LineItem();
+        $item->amountIncludingTax = 100.00;
+        $item->type = LineItem::TYPE_PRODUCT;
+
+        $result = $service->sanitizeNegativeLineItems([$item]);
+        $this->assertEquals(100.00, $result[0]->amountIncludingTax);
+    }
+
     public function testSanitizeNegativeLineItemsOnlyAdjustsDiscountType(): void
     {
         $service = $this->createService();
@@ -194,5 +171,27 @@ class LineItemConsistencyServiceTest extends TestCase
         $result = $service->sanitizeNegativeLineItems([$item1]);
 
         $this->assertEquals(0.00, $result[0]->amountIncludingTax);
+    }
+
+    public function testSmallDiscrepancyAddsAdjustment(): void
+    {
+        $service = $this->createService();
+
+        $item = new LineItem();
+        $item->uniqueId = '1';
+        $item->sku = 'SKU1';
+        $item->name = 'Product';
+        $item->quantity = 1;
+        $item->amountIncludingTax = 9.98;
+
+        // Expected 10.00, but item is 9.98 (Difference: 0.02)
+        $result = $service->ensureConsistency([$item], 10.00, 'CHF');
+
+        $this->assertCount(2, $result);
+
+        $adjustment = end($result);
+        $this->assertEquals('rounding-adjustment', $adjustment->sku);
+        $this->assertEquals(0.02, $adjustment->amountIncludingTax);
+        $this->assertEquals(LineItem::TYPE_FEE, $adjustment->type);
     }
 }

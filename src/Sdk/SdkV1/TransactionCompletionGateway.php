@@ -14,7 +14,7 @@ use Wallee\Sdk\Service\TransactionVoidService as SdkTransactionVoidService;
 
 /**
  * SDK v1 implementation of the transaction completion gateway.
- * 
+ *
  * This class interacts with the Wallee SDK to perform capture operations
  * and maps SDK objects to domain entities.
  */
@@ -22,7 +22,8 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
 {
     public function __construct(
         private readonly SdkProvider $sdkProvider,
-    ) {}
+    ) {
+    }
 
     /**
      * Captures an authorized transaction by creating a completion online.
@@ -45,7 +46,7 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
 
     /**
      * Maps an SDK TransactionCompletion to our domain TransactionCompletion.
-     * 
+     *
      * This ensures SDK objects do not leak into the domain layer.
      *
      * @param SdkTransactionCompletion $sdkCompletion The SDK completion object.
@@ -58,7 +59,24 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
         $completion->id = $sdkCompletion->getId();
         $completion->linkedTransactionId = $sdkCompletion->getLinkedTransaction();
         $completion->state = StateEnum::from($sdkCompletion->getState());
-        $completion->lineItems = $sdkCompletion->getLineItems();
+
+        if ($sdkCompletion->getLineItems()) {
+            $completion->lineItems = array_map(function ($sdkItem) {
+                $item = new \Wallee\PluginCore\LineItem\LineItem();
+                $item->uniqueId = $sdkItem->getUniqueId();
+                $item->sku = $sdkItem->getSku();
+                $item->name = $sdkItem->getName();
+                $item->quantity = $sdkItem->getQuantity();
+                $item->amountIncludingTax = $sdkItem->getAmountIncludingTax();
+                $item->type = match ($sdkItem->getType()) {
+                    \Wallee\Sdk\Model\LineItemType::DISCOUNT => \Wallee\PluginCore\LineItem\LineItem::TYPE_DISCOUNT,
+                    \Wallee\Sdk\Model\LineItemType::SHIPPING => \Wallee\PluginCore\LineItem\LineItem::TYPE_SHIPPING,
+                    \Wallee\Sdk\Model\LineItemType::FEE => \Wallee\PluginCore\LineItem\LineItem::TYPE_FEE,
+                    default => \Wallee\PluginCore\LineItem\LineItem::TYPE_PRODUCT,
+                };
+                return $item;
+            }, $sdkCompletion->getLineItems());
+        }
 
         return $completion;
     }

@@ -84,40 +84,6 @@ class PaymentMethodServiceTest extends TestCase
         $this->assertSame($mockMethods, $result);
     }
 
-    public function testSynchronize(): void
-    {
-        $spaceId = 123;
-        $mockMethods = [
-            new PaymentMethod(
-                id: 1,
-                spaceId: $spaceId,
-                state: 'active',
-                name: 'Method 1',
-                title: [],
-                description: null,
-                descriptionMap: [],
-                sortOrder: 1,
-                imageUrl: null,
-            )
-        ];
-
-        $gateway = $this->createMock(PaymentMethodGatewayInterface::class);
-        $gateway->expects($this->once())
-            ->method('fetchBySpaceId')
-            ->with($spaceId)
-            ->willReturn($mockMethods);
-
-        $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
-        $repository->expects($this->once())
-            ->method('sync')
-            ->with($spaceId, $mockMethods);
-
-        $logger = $this->createMock(LoggerInterface::class);
-
-        $service = new PaymentMethodService($gateway, $repository, $logger);
-        $service->synchronize($spaceId);
-    }
-
     public function testGetPaymentMethod(): void
     {
         $spaceId = 123;
@@ -147,5 +113,39 @@ class PaymentMethodServiceTest extends TestCase
         $result = $service->getPaymentMethod($spaceId, $methodId);
 
         $this->assertSame($mockMethod, $result);
+    }
+
+    public function testSynchronize(): void
+    {
+        $spaceId = 123;
+        $mockMethods = [
+            new PaymentMethod(
+                id: 1,
+                spaceId: $spaceId,
+                state: 'active',
+                name: 'Method 1',
+                title: [],
+                description: null,
+                descriptionMap: [],
+                sortOrder: 1,
+                imageUrl: null,
+            ),
+        ];
+
+        $gateway = $this->createMock(PaymentMethodGatewayInterface::class);
+        $gateway->expects($this->once())
+            ->method('fetchBySpaceId')
+            ->with($spaceId)
+            ->willReturn($mockMethods);
+
+        $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('sync')
+            ->with($spaceId, $mockMethods);
+
+        $logger = $this->createMock(LoggerInterface::class);
+
+        $service = new PaymentMethodService($gateway, $repository, $logger);
+        $service->synchronize($spaceId);
     }
 }

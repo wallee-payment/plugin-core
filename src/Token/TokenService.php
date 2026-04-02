@@ -14,8 +14,9 @@ class TokenService
 {
     public function __construct(
         private TokenGatewayInterface $tokenGateway,
-        private LoggerInterface $logger
-    ) {}
+        private LoggerInterface $logger,
+    ) {
+    }
 
     /**
      * Attempts to create a token for a given transaction.

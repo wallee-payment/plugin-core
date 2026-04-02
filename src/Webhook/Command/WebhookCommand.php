@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Webhook\Command;
 
-use Wallee\PluginCore\Webhook\WebhookContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Webhook\Exception\CommandException;
+use Wallee\PluginCore\Webhook\WebhookContext;
 
 /**
  * An abstract base class for webhook commands.
@@ -20,7 +20,8 @@ abstract class WebhookCommand implements WebhookCommandInterface
     public function __construct(
         protected readonly WebhookContext $context,
         protected readonly LoggerInterface $logger,
-    ) {}
+    ) {
+    }
 
     /**
      * Executes the command's domain-specific logic.

@@ -29,14 +29,14 @@ $spaceId = $common['spaceId'];
 $sdkProvider = $common['sdkProvider'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// 1. Load Transaction ID
+// Load the original transaction ID for the recurring payment.
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
     exit($e->getMessage());
 }
 
-// 2. Setup Services
+// Setup the required services for processing recurring payments.
 $transactionGateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $recurringGateway = new RecurringTransactionGateway($sdkProvider, $logger);
 $consistencyService = new LineItemConsistencyService($settings, $logger);
@@ -53,7 +53,7 @@ $recurringService = new RecurringTransactionService(
 
 echo "Attempting to Process Recurring Payment for Transaction ID: $transactionId\n";
 
-// 3. Execute Recurring Payment
+// Execute the recurring payment processing.
 try {
     $newTransaction = $recurringService->processRecurringPayment((int)$spaceId, $transactionId);
 

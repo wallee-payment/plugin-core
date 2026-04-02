@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Tests\Webhook;
 
-use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Webhook\DefaultWebhookLifecycleHandler;
 use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 use Wallee\PluginCore\Webhook\WebhookContext;
@@ -15,8 +15,20 @@ use Wallee\PluginCore\Webhook\WebhookContext;
  */
 class TestableLifecycleHandler extends DefaultWebhookLifecycleHandler
 {
+    /** @var list<string> */
     public array $acquiredLocks = [];
+    /** @var list<string> */
     public array $releasedLocks = [];
+
+    protected function doAcquireLock(string $resourceId): void
+    {
+        $this->acquiredLocks[] = $resourceId;
+    }
+
+    protected function doReleaseLock(string $resourceId): void
+    {
+        $this->releasedLocks[] = $resourceId;
+    }
 
     // Implement mandatory method
     public function getLastProcessedState(WebhookListener $listener, int $entityId): string
@@ -30,16 +42,6 @@ class TestableLifecycleHandler extends DefaultWebhookLifecycleHandler
         return ['resource_1', 'resource_2'];
     }
 
-    protected function doAcquireLock(string $resourceId): void
-    {
-        $this->acquiredLocks[] = $resourceId;
-    }
-
-    protected function doReleaseLock(string $resourceId): void
-    {
-        $this->releasedLocks[] = $resourceId;
-    }
-    
     // Helper to test the protected helper method
     public function publicCallFindDefaultInitialState(WebhookListener $listener): string
     {
@@ -50,46 +52,15 @@ class TestableLifecycleHandler extends DefaultWebhookLifecycleHandler
 
 class DefaultWebhookLifecycleHandlerTest extends TestCase
 {
-    private TestableLifecycleHandler $handler;
     private WebhookContext $context;
-
-    protected function setUp(): void
-    {
-        $this->handler = new TestableLifecycleHandler();
-        $this->context = new WebhookContext('REMOTE', 'LOCAL', 123, 1);
-    }
-
-    public function testPreProcessAcquiresLocks(): void
-    {
-        $listener = WebhookListener::TRANSACTION;
-        
-        $this->handler->preProcess($listener, $this->context);
-
-        $this->assertEquals(['resource_1', 'resource_2'], $this->handler->acquiredLocks);
-    }
-
-    public function testPostProcessReleasesLocksInReverseOrder(): void
-    {
-        $listener = WebhookListener::TRANSACTION;
-        
-        $this->handler->postProcess($listener, $this->context, null);
-
-        // Should release in reverse order (LIFO)
-        $this->assertEquals(['resource_2', 'resource_1'], $this->handler->releasedLocks);
-    }
-
-    public function testOnFailureReleasesLocksInReverseOrder(): void
-    {
-        $listener = WebhookListener::TRANSACTION;
-        
-        $this->handler->onFailure($listener, $this->context, new \Exception());
-
-        $this->assertEquals(['resource_2', 'resource_1'], $this->handler->releasedLocks);
-    }
+    private TestableLifecycleHandler $handler;
 
     /**
      * This provides a test case for every listener type and its
      * expected initial state.
+     */
+    /**
+     * @return array<string, array{0: WebhookListener, 1: string}>
      */
     public static function initialStateProvider(): array
     {
@@ -107,11 +78,45 @@ class DefaultWebhookLifecycleHandlerTest extends TestCase
         ];
     }
 
+    protected function setUp(): void
+    {
+        $this->handler = new TestableLifecycleHandler();
+        $this->context = new WebhookContext('REMOTE', 'LOCAL', 123, 1);
+    }
+
     #[DataProvider('initialStateProvider')]
     public function testFindDefaultInitialStateReturnsCorrectState(WebhookListener $listener, string $expectedInitialState): void
     {
         $result = $this->handler->publicCallFindDefaultInitialState($listener);
 
         $this->assertSame($expectedInitialState, $result, "Failed for listener: {$listener->getTechnicalName()}");
+    }
+
+    public function testOnFailureReleasesLocksInReverseOrder(): void
+    {
+        $listener = WebhookListener::TRANSACTION;
+
+        $this->handler->onFailure($listener, $this->context, new \Exception());
+
+        $this->assertEquals(['resource_2', 'resource_1'], $this->handler->releasedLocks);
+    }
+
+    public function testPostProcessReleasesLocksInReverseOrder(): void
+    {
+        $listener = WebhookListener::TRANSACTION;
+
+        $this->handler->postProcess($listener, $this->context, null);
+
+        // Should release in reverse order (LIFO)
+        $this->assertEquals(['resource_2', 'resource_1'], $this->handler->releasedLocks);
+    }
+
+    public function testPreProcessAcquiresLocks(): void
+    {
+        $listener = WebhookListener::TRANSACTION;
+
+        $this->handler->preProcess($listener, $this->context);
+
+        $this->assertEquals(['resource_1', 'resource_2'], $this->handler->acquiredLocks);
     }
 }

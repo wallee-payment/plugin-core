@@ -6,10 +6,6 @@ namespace Wallee\PluginCore\Transaction;
 
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Token\TokenService;
-use Wallee\PluginCore\Transaction\Transaction;
-use Wallee\PluginCore\Transaction\TransactionContext;
-use Wallee\PluginCore\Transaction\TransactionService;
-
 
 /**
  * Service for handling recurring transactions.
@@ -21,7 +17,8 @@ readonly class RecurringTransactionService
         private RecurringTransactionGatewayInterface $recurringGateway,
         private TokenService $tokenService,
         private LoggerInterface $logger,
-    ) {}
+    ) {
+    }
 
     /**
      * Processes a recurring payment for an existing transaction.

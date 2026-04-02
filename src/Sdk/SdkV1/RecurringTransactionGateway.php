@@ -38,29 +38,6 @@ class RecurringTransactionGateway implements RecurringTransactionGatewayInterfac
     }
 
     /**
-     * Processes a recurring payment for an existing transaction.
-     *
-     * @param int $spaceId The space ID.
-     * @param int $transactionId The transaction ID.
-     * @return Transaction The processed transaction.
-     * @throws \Exception If the processing fails.
-     */
-    public function processRecurringPayment(int $spaceId, int $transactionId): Transaction
-    {
-        $this->logger->debug("Processing recurring payment (ID: $transactionId).");
-
-        try {
-            $sdkTransaction = $this->transactionService->processWithoutUserInteraction($spaceId, $transactionId);
-            $this->logger->debug("Recurring payment processed successfully for Transaction $transactionId.");
-
-            return $this->mapToTransaction($sdkTransaction);
-        } catch (\Exception $e) {
-            $this->logger->error("Failed to process recurring payment for Transaction $transactionId: " . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    /**
      * Maps an SDK Transaction to a domain Transaction.
      *
      * Duplicated from TransactionGateway to avoid coupling or refactoring.
@@ -90,5 +67,28 @@ class RecurringTransactionGateway implements RecurringTransactionGatewayInterfac
         };
 
         return $domain;
+    }
+
+    /**
+     * Processes a recurring payment for an existing transaction.
+     *
+     * @param int $spaceId The space ID.
+     * @param int $transactionId The transaction ID.
+     * @return Transaction The processed transaction.
+     * @throws \Exception If the processing fails.
+     */
+    public function processRecurringPayment(int $spaceId, int $transactionId): Transaction
+    {
+        $this->logger->debug("Processing recurring payment (ID: $transactionId).");
+
+        try {
+            $sdkTransaction = $this->transactionService->processWithoutUserInteraction($spaceId, $transactionId);
+            $this->logger->debug("Recurring payment processed successfully for Transaction $transactionId.");
+
+            return $this->mapToTransaction($sdkTransaction);
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to process recurring payment for Transaction $transactionId: " . $e->getMessage());
+            throw $e;
+        }
     }
 }

@@ -4,6 +4,7 @@ namespace MyPlugin\ExampleCheckoutImplementation;
 
 use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\Examples\Common\FilePersistence;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
@@ -24,16 +25,16 @@ $settings = $common['settings'];
 /** @var FilePersistence $persistence */
 $persistence = $common['persistence'];
 
-// 1. Services
+// Initialize core services.
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $consistency = new LineItemConsistencyService($settings, $logger);
 $service = new TransactionService($gateway, $consistency, $logger);
 
-// 2. Load Session
-// FilePersistence get() returns mixed, but 'transaction_id' is int.
-$originalTransactionId = $persistence->get('transaction_id');
-
-if (!$originalTransactionId) {
+// Load the existing session to resume the transaction.
+// We use the TransactionIdLoader to retrieve the ID from CLI arguments or the session.json file.
+try {
+    $originalTransactionId = TransactionIdLoader::load($argv);
+} catch (\Exception $e) {
     exit("ERROR: No active session. Run '1_start_checkout.php' first.\n");
 }
 
@@ -84,7 +85,7 @@ function fetch_and_print_methods(TransactionService $service, int $spaceId, int 
 }
 
 // ==================================================================================
-// UPDATE 1: INCREASE QUANTITY
+// UPDATE: INCREASE QUANTITY
 // ==================================================================================
 echo "\n--- [Update 1] Increasing Watch Quantity to 2 ---\n";
 
@@ -114,7 +115,7 @@ echo " > Sometime later...\n";
 sleep(2); // Reduced from 5 to 2 for faster demo
 
 // ==================================================================================
-// UPDATE 2: ADD ACCESSORY
+// UPDATE: ADD ACCESSORY
 // ==================================================================================
 echo "\n--- [Update 2] Adding Leather Strap ---\n";
 
@@ -143,7 +144,7 @@ echo " > Sometime later...\n";
 sleep(2);
 
 // ==================================================================================
-// UPDATE 3: APPLY DISCOUNT
+// UPDATE: APPLY DISCOUNT
 // ==================================================================================
 echo "\n--- [Update 3] Applying 10% Discount ---\n";
 

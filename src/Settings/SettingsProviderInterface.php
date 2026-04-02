@@ -12,17 +12,20 @@ use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
  */
 interface SettingsProviderInterface
 {
-    public function getSpaceId(): ?int;
-    public function getUserId(): ?int;
     public function getApiKey(): ?string;
 
     /**
-     * Gets the configured log level (e.g., 'INFO' or 'DEBUG').
+     * Returns the API Base URL.
+     * Implementations should return null to use the default Wallee production URL.
+     *
+     * @return string|null
      */
-    public function getLogLevel(): ?string;
+    public function getBaseUrl(): ?string;
+
+    public function getIntegrationMode(): IntegrationMode;
 
     /**
-     * Should PluginCore automatically add a small adjustment line item 
+     * Should PluginCore automatically add a small adjustment line item
      * if the totals don't match? (Default: true)
      */
     public function getLineItemConsistencyEnabled(): ?bool;
@@ -32,13 +35,10 @@ interface SettingsProviderInterface
      */
     public function getLineItemRoundingStrategy(): ?RoundingStrategyEnum;
 
-    public function getIntegrationMode(): IntegrationMode;
-
     /**
-     * Returns the API Base URL.
-     * Implementations should return null to use the default Wallee production URL.
-     *
-     * @return string|null
+     * Gets the configured log level (e.g., 'INFO' or 'DEBUG').
      */
-    public function getBaseUrl(): ?string;
+    public function getLogLevel(): ?string;
+    public function getSpaceId(): ?int;
+    public function getUserId(): ?int;
 }

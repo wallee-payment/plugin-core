@@ -6,13 +6,9 @@ namespace Wallee\PluginCore\DeliveryIndication;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
 
-enum State: string {
+enum State: string
+{
     use ValidatesStateTransitions;
-
-    case PENDING = 'PENDING';
-    case NOT_SUITABLE = 'NOT_SUITABLE';
-    case MANUAL_CHECK_REQUIRED = 'MANUAL_CHECK_REQUIRED';
-    case SUITABLE = 'SUITABLE';
 
     public static function getTransitionMap(): array
     {
@@ -37,4 +33,9 @@ enum State: string {
             ],
         ];
     }
+    case MANUAL_CHECK_REQUIRED = 'MANUAL_CHECK_REQUIRED';
+    case NOT_SUITABLE = 'NOT_SUITABLE';
+
+    case PENDING = 'PENDING';
+    case SUITABLE = 'SUITABLE';
 }

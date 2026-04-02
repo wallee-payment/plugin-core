@@ -4,11 +4,20 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Token;
 
+use Wallee\PluginCore\Render\JsonStringableTrait;
+
 /**
- * Domain object representing a Token.
+ * Domain entity representing a customer payment Token.
  */
 class Token
 {
+    use JsonStringableTrait;
+
+    /**
+     * @var string|null A customer-facing identifier for this token (e.g. masked card).
+     */
+    public ?string $customerIdentifier = null;
+
     /**
      * @var int The token ID.
      */
@@ -28,9 +37,4 @@ class Token
      * @var int The version number.
      */
     public int $version;
-
-    /**
-     * @var string|null The token name/value logic if needed, but SDK usually just needs ID.
-     */
-    // Add other fields as discovered necessary, keeping it minimal for now.
 }

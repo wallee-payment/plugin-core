@@ -6,15 +6,9 @@ namespace Wallee\PluginCore\Refund;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
 
-enum State: string {
+enum State: string
+{
     use ValidatesStateTransitions;
-
-    case CREATE = 'CREATE';
-    case SCHEDULED = 'SCHEDULED';
-    case PENDING = 'PENDING';
-    case MANUAL_CHECK = 'MANUAL_CHECK';
-    case FAILED = 'FAILED';
-    case SUCCESSFUL = 'SUCCESSFUL';
 
     public static function getTransitionMap(): array
     {
@@ -44,4 +38,11 @@ enum State: string {
             ],
         ];
     }
+
+    case CREATE = 'CREATE';
+    case FAILED = 'FAILED';
+    case MANUAL_CHECK = 'MANUAL_CHECK';
+    case PENDING = 'PENDING';
+    case SCHEDULED = 'SCHEDULED';
+    case SUCCESSFUL = 'SUCCESSFUL';
 }

@@ -9,15 +9,6 @@ use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 
 class WebhookListenerTest extends TestCase
 {
-    public function testGetTechnicalNameReturnsCorrectString(): void
-    {
-        // --- Act ---
-        $technicalName = WebhookListener::TRANSACTION->getTechnicalName();
-
-        // --- Assert ---
-        $this->assertSame('Transaction', $technicalName);
-    }
-
     public function testFromTechnicalNameReturnsCorrectCase(): void
     {
         // --- Act ---
@@ -35,5 +26,13 @@ class WebhookListenerTest extends TestCase
 
         // --- Act ---
         WebhookListener::fromTechnicalName('InvalidTechnicalName');
+    }
+    public function testGetTechnicalNameReturnsCorrectString(): void
+    {
+        // --- Act ---
+        $technicalName = WebhookListener::TRANSACTION->getTechnicalName();
+
+        // --- Assert ---
+        $this->assertSame('Transaction', $technicalName);
     }
 }

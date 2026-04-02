@@ -3,6 +3,7 @@
 namespace MyPlugin\ExampleCheckoutImplementation;
 
 use Wallee\PluginCore\Examples\Common\FilePersistence;
+use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Render\IntegratedPaymentRenderService;
 use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
@@ -23,42 +24,40 @@ $settings = $common['settings'];
 /** @var FilePersistence $persistence */
 $persistence = $common['persistence'];
 
-// 1. Services
+// Initialize required services.
 $gateway = new TransactionGateway($sdkProvider, $logger, $settings);
 $consistency = new LineItemConsistencyService($settings, $logger);
 $service = new TransactionService($gateway, $consistency, $logger);
 $renderService = new IntegratedPaymentRenderService();
 
-// 2. Load Session
-$transactionId = $persistence->get('transaction_id');
-
-if (!$transactionId) {
+// Retrieve the transaction ID from the persistence storage to resume the session.
+// We use the TransactionIdLoader to retrieve the ID from CLI arguments or the session.json file.
+try {
+    $transactionId = TransactionIdLoader::load($argv);
+} catch (\Exception $e) {
     exit("ERROR: No active session. Run '1_start_checkout.php' first.\n");
 }
 
 echo "Confirming Checkout for Transaction ID: $transactionId (Mode: IFrame)\n";
 
-// 3. Generate Simulation
+// Generate Simulation
 try {
     $mode = 'iframe';
 
-    // Fetch Available Methods
+    // Generate the simulation HTML.
+    // We pick the first available payment method and generate the payment URL.
     $paymentMethods = $gateway->getAvailablePaymentMethods((int)$spaceId, $transactionId);
     if (empty($paymentMethods)) {
         exit("\n[ERROR] No payment methods available for this transaction.\n");
     }
 
-    // Pick the first one
     $method = reset($paymentMethods);
     echo "Selected Payment Method: " . $method->name . " (ID: " . $method->id . ")\n";
 
-    // Get JS URL
     $javascriptUrl = $service->getPaymentUrl((int)$spaceId, $transactionId);
-
-    // Render HTML Block
     $blockHtml = $renderService->render($javascriptUrl, $method->id, $mode, 'payment-form');
 
-    // Load Host Template & Inject
+    // Load the host template and inject the rendered payment block.
     $templatePath = __DIR__ . '/resources/integrated_checkout_host.html';
     if (!file_exists($templatePath)) {
         exit("\n[ERROR] Host template not found at: $templatePath\n");
@@ -66,7 +65,7 @@ try {
     $templateHtml = file_get_contents($templatePath);
     $finalHtml = str_replace('{{content}}', $blockHtml, $templateHtml);
 
-    // Save Simulation File
+    // Save the generated simulation to an HTML file.
     $outputFile = __DIR__ . "/checkout_simulation_iframe_{$transactionId}.html";
     file_put_contents($outputFile, $finalHtml);
 

@@ -61,6 +61,15 @@ interface TransactionGatewayInterface
     public function getPaymentUrl(int $spaceId, int $transactionId): string;
 
     /**
+     * Searches for transactions matching the criteria.
+     *
+     * @param int $spaceId The space ID.
+     * @param TransactionSearchCriteria $criteria The search criteria.
+     * @return Transaction[] The matching transactions.
+     */
+    public function search(int $spaceId, TransactionSearchCriteria $criteria): array;
+
+    /**
      * Updates an existing transaction.
      *
      * @param int $transactionId The transaction ID.
@@ -69,13 +78,4 @@ interface TransactionGatewayInterface
      * @return Transaction The updated transaction.
      */
     public function update(int $transactionId, int $version, TransactionContext $context): Transaction;
-
-    /**
-     * Searches for transactions matching the criteria.
-     *
-     * @param int $spaceId The space ID.
-     * @param TransactionSearchCriteria $criteria The search criteria.
-     * @return Transaction[] The matching transactions.
-     */
-    public function search(int $spaceId, TransactionSearchCriteria $criteria): array;
 }

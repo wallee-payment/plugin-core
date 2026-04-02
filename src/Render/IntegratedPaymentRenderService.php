@@ -25,7 +25,7 @@ class IntegratedPaymentRenderService
         string $javascriptUrl,
         int $paymentMethodConfigurationId,
         string $integrationMode,
-        string $containerId = 'payment-form'
+        string $containerId = 'payment-form',
     ): string {
         $html = '<script src="' . $javascriptUrl . '"></script>' . PHP_EOL;
 

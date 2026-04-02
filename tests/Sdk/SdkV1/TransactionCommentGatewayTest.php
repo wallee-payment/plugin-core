@@ -9,15 +9,15 @@ use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\SdkV1\TransactionCommentGateway;
-use Wallee\Sdk\Service\TransactionCommentService as SdkTransactionCommentService;
 use Wallee\Sdk\Model\TransactionComment as SdkTransactionComment;
+use Wallee\Sdk\Service\TransactionCommentService as SdkTransactionCommentService;
 
 class TransactionCommentGatewayTest extends TestCase
 {
     private TransactionCommentGateway $gateway;
+    private MockObject|LoggerInterface $logger;
     private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkTransactionCommentService $sdkReferenceService;
-    private MockObject|LoggerInterface $logger;
 
     protected function setUp(): void
     {
@@ -32,8 +32,20 @@ class TransactionCommentGatewayTest extends TestCase
 
         $this->gateway = new TransactionCommentGateway(
             $this->sdkProvider,
-            $this->logger
+            $this->logger,
         );
+    }
+
+    public function testGetCommentsHandlesExceptionGracefully(): void
+    {
+        $this->sdkReferenceService->method('all')
+            ->willThrowException(new \Exception("API Error"));
+
+        $this->logger->expects($this->once())->method('error');
+
+        $comments = $this->gateway->getComments(1, 1);
+        $this->assertIsArray($comments);
+        $this->assertEmpty($comments);
     }
 
     public function testGetCommentsMapsCorrectly(): void
@@ -58,17 +70,5 @@ class TransactionCommentGatewayTest extends TestCase
         $this->assertEquals(999, $comments[0]->id);
         $this->assertEquals('Test Comment', $comments[0]->content);
         $this->assertEquals($now->getTimestamp(), $comments[0]->createdOn->getTimestamp());
-    }
-
-    public function testGetCommentsHandlesExceptionGracefully(): void
-    {
-        $this->sdkReferenceService->method('all')
-            ->willThrowException(new \Exception("API Error"));
-
-        $this->logger->expects($this->once())->method('error');
-
-        $comments = $this->gateway->getComments(1, 1);
-        $this->assertIsArray($comments);
-        $this->assertEmpty($comments);
     }
 }

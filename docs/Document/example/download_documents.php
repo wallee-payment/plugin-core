@@ -6,9 +6,9 @@ namespace Wallee\Example;
  * Document Retrieval Example
  *
  * This script demonstrates how to retrieve:
- * 1. Invoice PDF
- * 2. Packing Slip PDF
- * 3. Refund Credit Note PDF (if a refund exists)
+ * - Invoice PDF
+ * - Packing Slip PDF
+ * - Refund Credit Note PDF (if a refund exists)
  *
  * USAGE:
  * php download_documents.php [transaction_id]
@@ -32,7 +32,7 @@ $spaceId = $common['spaceId'];
 $sdkProvider = $common['sdkProvider'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// 1. Load Transaction ID
+// Load the transaction ID from command line arguments or environment.
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
@@ -41,7 +41,7 @@ try {
 
 echo "Operating on Transaction ID: $transactionId\n";
 
-// 2. Setup Services
+// Setup the required document and transaction services.
 $documentGateway = new DocumentGateway($sdkProvider, $logger);
 $documentService = new DocumentService($documentGateway);
 
@@ -92,7 +92,7 @@ function saveDocument(string $name, string $data, string $mimeType, string $dire
     echo "Saved $name to: " . $filename . "\n";
 }
 
-// 3. Retrieve Invoice
+// Retrieve and save the invoice document for the transaction.
 try {
     echo "\n--- Fetching Invoice ---\n";
     $invoice = $documentService->getInvoice((int)$spaceId, (int)$transactionId);
@@ -102,7 +102,7 @@ try {
     echo "FAILED to get Invoice: " . $e->getMessage() . "\n";
 }
 
-// 4. Retrieve Packing Slip
+// Retrieve and save the packing slip document for the transaction.
 try {
     echo "\n--- Fetching Packing Slip ---\n";
     $packingSlip = $documentService->getPackingSlip((int)$spaceId, (int)$transactionId);
@@ -112,7 +112,7 @@ try {
     echo "FAILED to get Packing Slip: " . $e->getMessage() . "\n";
 }
 
-// 5. Retrieve Refund Credit Note
+// Retrieve and save the refund credit note if any refunds have been processed.
 try {
     echo "\n--- Fetching Refund Credit Note ---\n";
 

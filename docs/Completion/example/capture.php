@@ -24,20 +24,20 @@ $spaceId = $common['spaceId'];
 $sdkProvider = $common['sdkProvider'];
 $logger = $common['logger'];
 $settings = $common['settings'];
-// 1. Load Transaction ID
+// Load the transaction ID from command line arguments or environment.
 try {
     $transactionId = TransactionIdLoader::load($argv);
 } catch (\Exception $e) {
     exit($e->getMessage());
 }
 
-// 2. Setup Services
+// Setup required services for transaction completion.
 $completionGateway = new TransactionCompletionGateway($sdkProvider);
 $completionService = new TransactionCompletionService($completionGateway, $logger);
 
 echo "Attempting to Capture Transaction ID: $transactionId\n";
 
-// 3. Execute Capture
+// Execute the capture operation.
 try {
     $completion = $completionService->capture((int)$spaceId, $transactionId);
 

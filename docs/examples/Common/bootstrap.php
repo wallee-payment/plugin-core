@@ -22,7 +22,7 @@ use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\Settings;
 
-// 1. Validate Environment
+// Validate that all required environment variables are present.
 $required = ['PLUGINCORE_DEMO_SPACE_ID', 'PLUGINCORE_DEMO_USER_ID', 'PLUGINCORE_DEMO_API_SECRET'];
 foreach ($required as $var) {
     if (!getenv($var)) {
@@ -33,19 +33,18 @@ foreach ($required as $var) {
 
 $spaceId = (int)getenv('PLUGINCORE_DEMO_SPACE_ID');
 
-// 2. Initialize Services
+// Initialize core services and settings.
 $logger = new SimpleLogger();
 $settingsProvider = new EnvSettingsProvider();
 $settings = new Settings($settingsProvider);
 $sdkProvider = new SdkProvider($settings);
 
-// 3. Initialize Helpers
-// Using a session file relative to the calling script's location if needed, 
-// but typically examples run from their own dir, so '.' session.json is fine.
+// Initialize helper components for persistence and argument loading.
+// We use a local JSON file for session persistence in these examples.
 $persistence = new FilePersistence('session.json');
 $argLoader = new TransactionIdLoader($persistence);
 
-// 4. Return initialized components
+// Return the initialized components as an associative array.
 return [
     'sdkProvider' => $sdkProvider,
     'settings' => $settings,

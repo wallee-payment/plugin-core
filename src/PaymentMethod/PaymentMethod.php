@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\PaymentMethod;
 
+use Wallee\PluginCore\Render\JsonStringableTrait;
+
 /**
  * Domain entity representing a Payment Method.
  *
@@ -12,14 +14,16 @@ namespace Wallee\PluginCore\PaymentMethod;
  */
 readonly class PaymentMethod
 {
+    use JsonStringableTrait;
+
     /**
      * @param int $id The ID of the payment method configuration.
      * @param int $spaceId The ID of the space this method belongs to.
-     * @param string $name The resolved name of the payment method.
-     * @param string $state The state of the payment method (e.g., Active, Inactive).
+     * @param array<string, string> $title The localized titles.
+     * @param string|null $description The description of the payment method, if available.
+     * @param array<string, string> $descriptionMap The localized descriptions.
      * @param int $sortOrder The sort order for display purposes.
      * @param string|null $imageUrl The URL of the payment method image, if available.
-     * @param string|null $description The description of the payment method, if available.
      */
     public function __construct(
         public int $id,
@@ -31,5 +35,6 @@ readonly class PaymentMethod
         public array $descriptionMap,
         public int $sortOrder,
         public ?string $imageUrl,
-    ) {}
+    ) {
+    }
 }

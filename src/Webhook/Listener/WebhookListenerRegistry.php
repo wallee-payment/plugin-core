@@ -44,22 +44,24 @@ class WebhookListenerRegistry
     }
 
     /**
+     * Retrieves all registered listeners.
+     *
+     * @return array<string, array<string, WebhookListenerInterface>> An associative array of all listeners.
+     */
+    public function getAllListeners(): array
+    {
+        return $this->listeners;
+    }
+
+    /**
      * Checks if a webhook listener with the given name and state exists in the registry.
      *
      * @param WebhookListenerEnum $name The webhook listener instance to check for.
      * @param string $state The state associated with the listener.
      * @return bool Returns true if the listener with the specified state exists, false otherwise.
      */
-    public function hasListener(WebhookListenerEnum $name, string $state): bool {
+    public function hasListener(WebhookListenerEnum $name, string $state): bool
+    {
         return isset($this->listeners[$name->value][$state]);
-    }
-
-    /**
-     * Retrieves all registered listeners.
-     *
-     * @return array<string, array<string, WebhookListenerInterface>> An associative array of all listeners.
-     */
-    public function getAllListeners(): array {
-        return $this->listeners;
     }
 }

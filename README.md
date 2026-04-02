@@ -16,41 +16,82 @@ Instead of duplicating complex logic across different shop systems, `plugin-core
 * **Shop Plugin:** Acts as an **adapter**. It interchanges data between the shop and the Core, handles database persistence, manages configuration, and integrates into the shop's frontend/backend events.
 
 ### Key Architectural Benefits
+
 * **Pure PHP:** Framework-agnostic code that runs anywhere PHP runs.
 * **Minimal Dependencies:** Depends only on the official `wallee/php-sdk`, making it lightweight and easy to port to any environment.
 * **Type Safety:** Written with strict typing to catch errors early.
 * **Testability:** Designed for 100% unit test coverage with isolated components.
 * **PSR Standards:** Fully compliant with PSR-3 (Logging) and other standard interfaces.
 * **Contract-Driven:** Clear Interfaces and Abstract Base Classes guide developers to implement the necessary platform-specific adapters correctly.
+
 ---
 
 ## Key Features
 
-The library is divided into major functional components.
+The library is divided into major functional components, each designed for robustness and ease of integration.
 
-### 1. Webhook Processing
-A robust engine for handling asynchronous events from the Wallee Portal. It is designed to handle **high-concurrency** environments and **out-of-order** delivery without data corruption.
+### 1. Checkout Engine
+The core of the payment flow. Handles transaction creation and management with a sophisticated "upsert" strategy, ensuring seamless navigation without duplicate charges.
+*   **[Read Checkout Docs](docs/Checkout/README.md)**
 
-* **Self-Healing State Machine:** Automatically detects missing or out-of-order webhooks and "catches up" the local state to match the remote reality.
-* **Concurrency Safe:** Implements a sophisticated, two-stage locking strategy (Entity + Resource) to prevent race conditions between different webhook types modifying the same order.
-* **Idempotent:** Intelligently handles duplicate events without redundant processing.
-* **Data Integrity Guard:** Enforces "Safe Updates" by checking for protected states (e.g., preventing an automated process from overwriting a manual review status).
+### 2. Webhook Processor
+The engine for handling asynchronous events from the Wallee Portal. It's built for scale and high concurrency.
+*   **[Read Webhook Processor Docs](docs/Webhook/Processor/README.md)**
 
-### 2. Portal Synchronization (Planned)
-*Future implementation.*
+### 3. Webhook Management
+Tools for programmatically managing webhooks in the Wallee Portal, including URL creation and Listener setup.
+*   **[Read Webhook Management Docs](docs/Webhook/Management/README.md)**
 
-### 3. Transaction Management (Planned)
-*Future implementation.*
+### 4. Transaction Completion (Capture & Void)
+Manage the final stages of the transaction lifecycle. Finalize payments (Capture) or cancel them (Void) with dedicated service handlers.
+*   **[Read Completion Docs](docs/Completion/README.md)**
+
+### 5. Recurring Payments
+Enables Merchant Initiated Transactions (MIT) for seamless subscription renewals and unscheduled subsequent charges using saved tokens.
+*   **[Read Recurring Docs](docs/Recurring/README.md)**
+
+### 6. Refund Management
+Support for full and partial refunds. Includes precise line-item logic and validation to prevent over-refunding.
+*   **[Read Refund Docs](docs/Refund/README.md)**
+
+### 7. Document Management
+Retrieve official PDF documents (Invoices, Packing Slips, Credit Notes) directly from the Wallee Portal for the merchants.
+*   **[Read Document Docs](docs/Document/README.md)**
+
+### 8. Payment Method Service
+A centralized service to fetch available payment method configurations from the Wallee Portal, ensuring the shop systems have an up-to-date view of available payment methods.
+*   **[Read Payment Method Docs](docs/PaymentMethod/README.md)**
+
 ---
 
 ## Documentation
 
-### 1. Webhook Processing
-Everything you need to implement the robust, concurrent-safe webhook engine.
+For a detailed look at how to implement each module, refer to the guides in the `docs/` directory:
 
-* **[Integration Guide](docs/Webhook/README.md):** A step-by-step guide to implementing the `WebhookProcessor` and its required adapters.
-* **[Architecture Overview](docs/Webhook/ARCHITECTURE.md):** A deep dive into the concurrency, locking, and state management strategies.
-* **[Running Example](docs/Webhook/example/):** A complete, runnable PHP implementation (CLI) showing how to wire up the Processor, Lifecycle Handler, and Commands. Use this as a reference blueprint before diving into a complex shop integration.
+-   **[Checkout & Transaction Flow](docs/Checkout/README.md)**: Handling the initial payment process.
+-   **[Webhook Integration](docs/Webhook/README.md)**: Master guide for both Processing and Management.
+-   **[Webhook Processor](docs/Webhook/Processor/README.md)**: Detailed guide for handling incoming notifications.
+-   **[Webhook Management](docs/Webhook/Management/README.md)**: Programmatic setup of listeners in the Wallee Portal.
+-   **[Transaction Completion](docs/Completion/README.md)**: Capturing and voiding authorized transactions.
+-   **[Recurring Charges](docs/Recurring/README.md)**: Implementing tokenized subsequent payments.
+-   **[Refund Process](docs/Refund/README.md)**: Managing customer returns and credit notes.
+-   **[Official Documents](docs/Document/README.md)**: Downloading invoices and other PDF assets.
+-   **[Payment Method Service](docs/PaymentMethod/README.md)**: Retrieving and synchronizing payment methods configurations.
+
+---
+
+## Examples
+
+For a runnable example for each of the modules, refer to the `examples` subdirectories in each of the module directories.
+
+-   **[Checkout & Transaction Flow](docs/Checkout/examples/)**: Handling the initial payment process.
+-   **[Webhook Processor](docs/Webhook/Processor/example/)**: Simulating state transitions and concurrent processing.
+-   **[Webhook Management](docs/Webhook/Management/example/)**: Lifecycle management (CLI scripts).
+-   **[Transaction Completion](docs/Completion/examples/)**: Capturing and voiding authorized transactions.
+-   **[Recurring Charges](docs/Recurring/examples/)**: Implementing tokenized subsequent payments.
+-   **[Refund Process](docs/Refund/examples/)**: Managing customer returns and credit notes.
+-   **[Official Documents](docs/Document/examples/)**: Downloading invoices and other PDF assets.
+-   **[Payment Method Service](docs/PaymentMethod/examples/)**: Retrieving and synchronizing payment methods configurations.
 
 ---
 
@@ -63,6 +104,7 @@ composer require wallee/plugin-core
 ---
 
 ## Unit Tests
+
 You can run the test suite to verify the library's behavior.
 
 ```bash
@@ -70,4 +112,5 @@ composer test
 ```
 
 ## License
-[License Information Here]
+
+Apache License. See [LICENSE.txt].

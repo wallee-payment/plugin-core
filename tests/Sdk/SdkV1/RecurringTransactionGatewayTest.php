@@ -18,8 +18,8 @@ use Wallee\Sdk\Service\TransactionService as SdkTransactionService;
 class RecurringTransactionGatewayTest extends TestCase
 {
     private RecurringTransactionGateway $gateway;
-    private MockObject|SdkProvider $sdkProvider;
     private MockObject|LoggerInterface $logger;
+    private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkTransactionService $transactionService;
 
     protected function setUp(): void

@@ -18,6 +18,6 @@ enum RoundingStrategy: string
      * Often used in B2B systems or custom ERPs.
      */
     case BY_TOTAL = 'BY_TOTAL';
-    
+
     // We can add specific strategies like 'FLOOR', 'CEIL' if requested later.
 }

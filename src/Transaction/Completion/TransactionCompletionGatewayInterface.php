@@ -6,7 +6,7 @@ namespace Wallee\PluginCore\Transaction\Completion;
 
 /**
  * Gateway interface for transaction completion operations.
- * 
+ *
  * Implementations interact with the SDK to perform capture operations.
  */
 interface TransactionCompletionGatewayInterface

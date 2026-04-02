@@ -13,8 +13,9 @@ class DocumentService
      * @param DocumentGatewayInterface $documentGateway
      */
     public function __construct(
-        private readonly DocumentGatewayInterface $documentGateway
-    ) {}
+        private readonly DocumentGatewayInterface $documentGateway,
+    ) {
+    }
 
     /**
      * Retrieves the rendered invoice document.

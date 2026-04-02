@@ -14,18 +14,11 @@ use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
  */
 abstract class DefaultSettingsProvider implements SettingsProviderInterface
 {
-    // --- REQUIRED: Must be implemented by the integration ---
-
-    abstract public function getSpaceId(): ?int;
-    abstract public function getUserId(): ?int;
     abstract public function getApiKey(): ?string;
 
-
-    // --- OPTIONAL: Defaults provided below ---
-
-    public function getLogLevel(): ?string
+    public function getBaseUrl(): ?string
     {
-        // Return null to let the Settings class default to 'INFO'
+        // Return null to let the Settings class use the production URL
         return null;
     }
 
@@ -33,12 +26,6 @@ abstract class DefaultSettingsProvider implements SettingsProviderInterface
     {
         // Default to the standard Hosted Payment Page
         return IntegrationMode::PAYMENT_PAGE;
-    }
-
-    public function getBaseUrl(): ?string
-    {
-        // Return null to let the Settings class use the production URL
-        return null;
     }
 
     public function getLineItemConsistencyEnabled(): ?bool
@@ -52,4 +39,17 @@ abstract class DefaultSettingsProvider implements SettingsProviderInterface
         // Return null to let the Settings class default to BY_LINE_ITEM
         return null;
     }
+
+
+    // --- OPTIONAL: Defaults provided below ---
+
+    public function getLogLevel(): ?string
+    {
+        // Return null to let the Settings class default to 'INFO'
+        return null;
+    }
+    // --- REQUIRED: Must be implemented by the integration ---
+
+    abstract public function getSpaceId(): ?int;
+    abstract public function getUserId(): ?int;
 }

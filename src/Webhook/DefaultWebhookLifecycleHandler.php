@@ -13,22 +13,6 @@ use Wallee\PluginCore\Webhook\Enum\WebhookListener as WebhookListenerEnum;
 abstract class DefaultWebhookLifecycleHandler implements WebhookLifecycleHandler
 {
     /**
-     * This is a mandatory method plugins must implement for state retrieval.
-     */
-    abstract public function getLastProcessedState(WebhookListenerEnum $listener, int $entityId): string;
-
-    /**
-     * Returns a list of unique resource identifiers to lock.
-     * Defaults to an empty array (no locking) for simple webhooks.
-     *
-     * @return string[]
-     */
-    public function getLockableResources(WebhookListenerEnum $listener, WebhookContext $context): array
-    {
-        return [];
-    }
-
-    /**
      * Method for the platform to implement the actual locking mechanics.
      * Defaults to doing nothing. Override this if the platform supports locking.
      */
@@ -49,7 +33,7 @@ abstract class DefaultWebhookLifecycleHandler implements WebhookLifecycleHandler
     /**
      * Helper method to find the default initial state for a given listener.
      */
-    protected final function findDefaultInitialState(WebhookListenerEnum $listener): string
+    final protected function findDefaultInitialState(WebhookListenerEnum $listener): string
     {
         $enumClass = $listener->getStateEnumClass();
 
@@ -66,18 +50,31 @@ abstract class DefaultWebhookLifecycleHandler implements WebhookLifecycleHandler
     }
 
     /**
+     * This is a mandatory method plugins must implement for state retrieval.
+     */
+    abstract public function getLastProcessedState(WebhookListenerEnum $listener, int $entityId): string;
+
+    /**
+     * Returns a list of unique resource identifiers to lock.
+     * Defaults to an empty array (no locking) for simple webhooks.
+     *
+     * @return string[]
+     */
+    public function getLockableResources(WebhookListenerEnum $listener, WebhookContext $context): array
+    {
+        return [];
+    }
+
+    /**
      * @inheritDoc
      */
-    public function preProcess(WebhookListenerEnum $listener, WebhookContext $context): bool
+    public function onFailure(WebhookListenerEnum $listener, WebhookContext $context, \Throwable $exception): void
     {
-        // 1. Auto-Locking Logic
+        // Auto-Release Logic
         $resources = $this->getLockableResources($listener, $context);
-        foreach ($resources as $resource) {
-            $this->doAcquireLock($resource);
+        foreach (array_reverse($resources) as $resource) {
+            $this->doReleaseLock($resource);
         }
-
-        // 2. Default: Always proceed
-        return true;
     }
 
     /**
@@ -95,12 +92,15 @@ abstract class DefaultWebhookLifecycleHandler implements WebhookLifecycleHandler
     /**
      * @inheritDoc
      */
-    public function onFailure(WebhookListenerEnum $listener, WebhookContext $context, \Throwable $exception): void
+    public function preProcess(WebhookListenerEnum $listener, WebhookContext $context): bool
     {
-        // Auto-Release Logic
+        // Auto-Locking Logic
         $resources = $this->getLockableResources($listener, $context);
-        foreach (array_reverse($resources) as $resource) {
-            $this->doReleaseLock($resource);
+        foreach ($resources as $resource) {
+            $this->doAcquireLock($resource);
         }
+
+        // Default: Always proceed
+        return true;
     }
 }

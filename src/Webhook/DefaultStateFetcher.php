@@ -9,6 +9,7 @@ use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
+use Wallee\PluginCore\Webhook\Exception\CommandException;
 use Wallee\Sdk\Service\WebhookEncryptionService;
 
 /**
@@ -25,7 +26,8 @@ class DefaultStateFetcher implements StateFetcherInterface
         private readonly SdkProvider $sdkProvider,
         private readonly Settings $settings,
         private readonly TransactionGatewayInterface $transactionGateway,
-    ) {}
+    ) {
+    }
 
     /**
      * @param Request $request
@@ -45,12 +47,12 @@ class DefaultStateFetcher implements StateFetcherInterface
             if ($encryptionService->isContentValid($signatureHeader, $request->getRawBody())) {
                 $body = $request->body;
                 if (empty($body['state'])) {
-                    throw new \Exception("Webhook payload is signed but missing 'state' field.");
+                    throw new CommandException("Webhook payload is signed but missing 'state' field.");
                 }
                 return (string) $body['state'];
             }
 
-            throw new \Exception("Invalid webhook signature.");
+            throw new CommandException("Invalid webhook signature.");
         }
 
         // Legacy way, fetch state from Portal API (extra request(s)).
@@ -71,6 +73,6 @@ class DefaultStateFetcher implements StateFetcherInterface
             }
         }
 
-        throw new \Exception("Failed to fetch state for entity $entityId after $maxRetries retries.");
+        throw new CommandException("Failed to fetch state for entity $entityId after $maxRetries retries.");
     }
 }

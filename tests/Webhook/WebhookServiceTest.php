@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Tests\Webhook;
 
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Transaction\State as TransactionState;
@@ -21,10 +22,10 @@ use Wallee\PluginCore\Webhook\WebhookSignatureGatewayInterface;
  */
 class WebhookServiceTest extends TestCase
 {
-    private $managementGateway;
-    private $signatureGateway;
-    private $logger;
+    private LoggerInterface|MockObject $logger;
+    private WebhookManagementGatewayInterface|MockObject $managementGateway;
     private WebhookService $service;
+    private WebhookSignatureGatewayInterface|MockObject $signatureGateway;
 
     protected function setUp(): void
     {
@@ -40,6 +41,131 @@ class WebhookServiceTest extends TestCase
     }
 
     /**
+     * Test createWebhookListener delegation.
+     */
+    public function testCreateWebhookListener(): void
+    {
+        $spaceId = 123;
+        $urlId = 99;
+        $entityEnum = WebhookListener::TRANSACTION;
+        $eventStates = ['active'];
+        $name = 'Listener';
+        $expectedId = 100;
+
+        $this->managementGateway->expects($this->once())
+            ->method('createListener')
+            ->with($spaceId, $urlId, $entityEnum, $eventStates, $name)
+            ->willReturn($expectedId);
+
+        $result = $this->service->createWebhookListener($spaceId, $urlId, $entityEnum, $eventStates, $name);
+        $this->assertEquals($expectedId, $result);
+    }
+
+    /**
+     * Test createWebhookUrl delegation.
+     */
+    public function testCreateWebhookUrl(): void
+    {
+        $spaceId = 123;
+        $url = 'https://example.com/webhook';
+        $name = 'Test Webhook';
+        $expectedId = 99;
+
+        $this->managementGateway->expects($this->once())
+            ->method('createUrl')
+            ->with($spaceId, $url, $name)
+            ->willReturn($expectedId);
+
+        $result = $this->service->createWebhookUrl($spaceId, $url, $name);
+        $this->assertEquals($expectedId, $result);
+    }
+
+    /**
+     * Test deleteWebhookListener delegation.
+     */
+    public function testDeleteWebhookListener(): void
+    {
+        $spaceId = 123;
+        $listenerId = 100;
+
+        $this->managementGateway->expects($this->once())
+            ->method('deleteListener')
+            ->with($spaceId, $listenerId);
+
+        $this->service->deleteWebhookListener($spaceId, $listenerId);
+    }
+
+    /**
+     * Test deleteWebhookUrl delegation.
+     */
+    public function testDeleteWebhookUrl(): void
+    {
+        $spaceId = 123;
+        $urlId = 99;
+
+        $this->managementGateway->expects($this->once())
+            ->method('deleteUrl')
+            ->with($spaceId, $urlId);
+
+        $this->service->deleteWebhookUrl($spaceId, $urlId);
+    }
+
+    /**
+     * Test cascade deletion logic in deleteWebhookUrl.
+     */
+    public function testDeleteWebhookUrlWithCascade(): void
+    {
+        $spaceId = 123;
+        $urlId = 99;
+
+        // Use proper DTOs for the return value
+        $listener1 = new WebhookListenerDto(101, 'L1', 1, []);
+        $listener2 = new WebhookListenerDto(102, 'L2', 1, []);
+
+        $this->managementGateway->expects($this->once())
+            ->method('getWebhookListeners')
+            ->with($spaceId, $urlId)
+            ->willReturn([$listener1, $listener2]);
+
+        // Expect deleteListener to be called twice with specific IDs
+        $this->managementGateway->expects($this->exactly(2))
+            ->method('deleteListener')
+            ->willReturnCallback(function (int $sId, int $lId) use ($spaceId): void {
+                static $index = 0;
+                $expectedIds = [101, 102];
+                $this->assertEquals($spaceId, $sId);
+                $this->assertEquals($expectedIds[$index], $lId);
+                $index++;
+            });
+
+        // Expect deleteUrl to be called once
+        $this->managementGateway->expects($this->once())
+            ->method('deleteUrl')
+            ->with($spaceId, $urlId);
+
+        $result = $this->service->deleteWebhookUrl($spaceId, $urlId, true);
+        $this->assertEquals(2, $result);
+    }
+
+    /**
+     * Test getWebhookUrls delegates to gateway with provided state.
+     */
+    public function testGetWebhookUrls(): void
+    {
+        $spaceId = 123;
+        $state = 'INACTIVE';
+        $expectedUrls = [new \Wallee\PluginCore\Webhook\WebhookUrl(1, 'Test', 'url', 1)];
+
+        $this->managementGateway->expects($this->once())
+            ->method('getWebhookUrls')
+            ->with($spaceId, $state)
+            ->willReturn($expectedUrls);
+
+        $result = $this->service->getWebhookUrls($spaceId, $state);
+        $this->assertSame($expectedUrls, $result);
+    }
+
+    /**
      * Test successful installation flow.
      */
     public function testInstallWebhook(): void
@@ -49,7 +175,7 @@ class WebhookServiceTest extends TestCase
             'https://example.com/webhook',
             'Test Webhook',
             WebhookListener::TRANSACTION,
-            [TransactionState::AUTHORIZED->value]
+            [TransactionState::AUTHORIZED->value],
         );
 
         $this->managementGateway->expects($this->once())
@@ -67,6 +193,23 @@ class WebhookServiceTest extends TestCase
             ->method('debug');
 
         $this->service->installWebhook($spaceId, $config);
+    }
+
+    /**
+     * Test listUrls delegates to getWebhookUrls with null state.
+     */
+    public function testListUrls(): void
+    {
+        $spaceId = 123;
+        $expectedUrls = [new \Wallee\PluginCore\Webhook\WebhookUrl(1, 'Test', 'url', 1)];
+
+        $this->managementGateway->expects($this->once())
+            ->method('getWebhookUrls')
+            ->with($spaceId, null)
+            ->willReturn($expectedUrls);
+
+        $result = $this->service->listUrls($spaceId);
+        $this->assertSame($expectedUrls, $result);
     }
 
     /**
@@ -110,6 +253,23 @@ class WebhookServiceTest extends TestCase
     }
 
     /**
+     * Test updateWebhookListener delegation.
+     */
+    public function testUpdateWebhookListener(): void
+    {
+        $spaceId = 123;
+        $listenerId = 100;
+        $entityEnum = WebhookListener::TRANSACTION;
+        $eventStates = ['active'];
+
+        $this->managementGateway->expects($this->once())
+            ->method('updateListener')
+            ->with($spaceId, $listenerId, $entityEnum, $eventStates);
+
+        $this->service->updateWebhookListener($spaceId, $listenerId, $entityEnum, $eventStates);
+    }
+
+    /**
      * Test successful update flow.
      */
     public function testUpdateWebhookUrl(): void
@@ -123,23 +283,6 @@ class WebhookServiceTest extends TestCase
             ->with($spaceId, $urlId, $newUrl);
 
         $this->service->updateWebhookUrl($spaceId, $urlId, $newUrl);
-    }
-
-    /**
-     * Test signature validation success.
-     */
-    public function testValidatePayloadSuccess(): void
-    {
-        $signature = 'valid-signature';
-        $payload = '{"test": "data"}';
-
-        $this->signatureGateway->expects($this->once())
-            ->method('validate')
-            ->with($signature, $payload)
-            ->willReturn(true);
-
-        $result = $this->service->validatePayload($signature, $payload);
-        $this->assertTrue($result);
     }
 
     /**
@@ -163,126 +306,19 @@ class WebhookServiceTest extends TestCase
     }
 
     /**
-     * Test createWebhookUrl delegation.
+     * Test signature validation success.
      */
-    public function testCreateWebhookUrl(): void
+    public function testValidatePayloadSuccess(): void
     {
-        $spaceId = 123;
-        $url = 'https://example.com/webhook';
-        $name = 'Test Webhook';
-        $expectedId = 99;
+        $signature = 'valid-signature';
+        $payload = '{"test": "data"}';
 
-        $this->managementGateway->expects($this->once())
-            ->method('createUrl')
-            ->with($spaceId, $url, $name)
-            ->willReturn($expectedId);
+        $this->signatureGateway->expects($this->once())
+            ->method('validate')
+            ->with($signature, $payload)
+            ->willReturn(true);
 
-        $result = $this->service->createWebhookUrl($spaceId, $url, $name);
-        $this->assertEquals($expectedId, $result);
-    }
-
-    /**
-     * Test createWebhookListener delegation.
-     */
-    public function testCreateWebhookListener(): void
-    {
-        $spaceId = 123;
-        $urlId = 99;
-        $entityEnum = WebhookListener::TRANSACTION;
-        $eventStates = ['active'];
-        $name = 'Listener';
-        $expectedId = 100;
-
-        $this->managementGateway->expects($this->once())
-            ->method('createListener')
-            ->with($spaceId, $urlId, $entityEnum, $eventStates, $name)
-            ->willReturn($expectedId);
-
-        $result = $this->service->createWebhookListener($spaceId, $urlId, $entityEnum, $eventStates, $name);
-        $this->assertEquals($expectedId, $result);
-    }
-
-    /**
-     * Test updateWebhookListener delegation.
-     */
-    public function testUpdateWebhookListener(): void
-    {
-        $spaceId = 123;
-        $listenerId = 100;
-        $entityEnum = WebhookListener::TRANSACTION;
-        $eventStates = ['active'];
-
-        $this->managementGateway->expects($this->once())
-            ->method('updateListener')
-            ->with($spaceId, $listenerId, $entityEnum, $eventStates);
-
-        $this->service->updateWebhookListener($spaceId, $listenerId, $entityEnum, $eventStates);
-    }
-
-    /**
-     * Test deleteWebhookUrl delegation.
-     */
-    public function testDeleteWebhookUrl(): void
-    {
-        $spaceId = 123;
-        $urlId = 99;
-
-        $this->managementGateway->expects($this->once())
-            ->method('deleteUrl')
-            ->with($spaceId, $urlId);
-
-        $this->service->deleteWebhookUrl($spaceId, $urlId);
-    }
-
-    /**
-     * Test deleteWebhookListener delegation.
-     */
-    public function testDeleteWebhookListener(): void
-    {
-        $spaceId = 123;
-        $listenerId = 100;
-
-        $this->managementGateway->expects($this->once())
-            ->method('deleteListener')
-            ->with($spaceId, $listenerId);
-
-        $this->service->deleteWebhookListener($spaceId, $listenerId);
-    }
-
-    /**
-     * Test cascade deletion logic in deleteWebhookUrl.
-     */
-    public function testDeleteWebhookUrlWithCascade(): void
-    {
-        $spaceId = 123;
-        $urlId = 99;
-
-        // Use proper DTOs for the return value
-        $listener1 = new WebhookListenerDto(101, 'L1', 1, []);
-        $listener2 = new WebhookListenerDto(102, 'L2', 1, []);
-
-        $this->managementGateway->expects($this->once())
-            ->method('getWebhookListeners')
-            ->with($spaceId, $urlId)
-            ->willReturn([$listener1, $listener2]);
-
-        // Expect deleteListener to be called twice with specific IDs
-        $this->managementGateway->expects($this->exactly(2))
-            ->method('deleteListener')
-            ->willReturnCallback(function (int $sId, int $lId) use ($spaceId): void {
-                static $index = 0;
-                $expectedIds = [101, 102];
-                $this->assertEquals($spaceId, $sId);
-                $this->assertEquals($expectedIds[$index], $lId);
-                $index++;
-            });
-
-        // Expect deleteUrl to be called once
-        $this->managementGateway->expects($this->once())
-            ->method('deleteUrl')
-            ->with($spaceId, $urlId);
-
-        $result = $this->service->deleteWebhookUrl($spaceId, $urlId, true);
-        $this->assertEquals(2, $result);
+        $result = $this->service->validatePayload($signature, $payload);
+        $this->assertTrue($result);
     }
 }

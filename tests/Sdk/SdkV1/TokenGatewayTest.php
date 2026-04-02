@@ -10,15 +10,15 @@ use Psr\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\SdkV1\TokenGateway;
 use Wallee\PluginCore\Token\Token;
-use Wallee\Sdk\Model\Token as SdkToken;
 use Wallee\Sdk\Model\CreationEntityState;
+use Wallee\Sdk\Model\Token as SdkToken;
 use Wallee\Sdk\Service\TokenService as SdkTokenService;
 
 class TokenGatewayTest extends TestCase
 {
     private TokenGateway $gateway;
-    private MockObject|SdkProvider $sdkProvider;
     private MockObject|LoggerInterface $logger;
+    private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkTokenService $tokenService;
 
     protected function setUp(): void

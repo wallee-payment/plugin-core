@@ -12,8 +12,8 @@ use Wallee\PluginCore\Document\RenderedDocument;
 
 class DocumentServiceTest extends TestCase
 {
-    private DocumentService $service;
     private MockObject|DocumentGatewayInterface $gateway;
+    private DocumentService $service;
 
     protected function setUp(): void
     {

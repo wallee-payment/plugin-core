@@ -15,25 +15,9 @@ namespace MyPlugin\ExamplePaymentMethodImplementation;
 error_reporting(E_ALL & ~E_DEPRECATED);
 
 require_once __DIR__ . '/../../../vendor/autoload.php';
-// Assuming these helper classes exist in the example/src directory relative to Webhook
-// We need to adjust paths or assume a common bootstrap.
-// For this example, we will assume we are in docs/PaymentMethod/example
-// and we can access the project root.
+// The following helper classes provide a simplified environment for this example.
+// In a real integration, these would be implemented by the shop system.
 
-// We will replicate the setup from the Webhook example but adapted for this location.
-// Ideally, we should have a common bootstrap, but we'll include what's necessary here.
-
-// Mocking/Using SimpleLogger and EnvSettingsProvider from the Webhook example content
-// to keep consistency if they are available project-wide, otherwise definitions are needed.
-// Checking the file structure, they seem to be local to the webhook example. 
-// I will define simple inline classes for the example to be standalone or use if they are in a shared dev/ path.
-// Based on the user instruction "get inspiration", I will implement minimal versions here if I can't find shared ones.
-// However, looking at the previous view_file of webhook.php, it required:
-// require_once __DIR__ . '/src/EnvSettingsProvider.php';
-// require_once __DIR__ . '/src/SimpleLogger.php';
-// I should probably check if I can reuse them or if I should create them.
-// For now, I'll create a simple logger and settings provider inline or use the ones from the project if available.
-// Actually, to make it robust, I'll define them here to ensure it runs without external non-vendor dependencies.
 
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\SdkV1\PaymentMethodGateway;
@@ -137,7 +121,7 @@ class EnvSettingsProvider implements SettingsProviderInterface
 
 // --- Main Execution ---
 
-// 1. Credentials
+// Credentials setup
 $spaceId = getenv('PLUGINCORE_DEMO_SPACE_ID');
 $userId = getenv('PLUGINCORE_DEMO_USER_ID');
 $apiSecret = getenv('PLUGINCORE_DEMO_API_SECRET');
@@ -148,7 +132,7 @@ if (!$spaceId || !$userId || !$apiSecret) {
 
 $spaceId = (int)$spaceId;
 
-// 2. Setup Services
+// Setup services and dependencies
 $logger = new SimpleLogger();
 $repository = new SimpleRepository();
 $settingsProvider = new EnvSettingsProvider();

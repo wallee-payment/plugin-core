@@ -6,12 +6,9 @@ namespace Wallee\PluginCore\ManualTask;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
 
-enum State: string {
+enum State: string
+{
     use ValidatesStateTransitions;
-
-    case OPEN = 'OPEN';
-    case DONE = 'DONE';
-    case EXPIRED = 'EXPIRED';
 
     public static function getTransitionMap(): array
     {
@@ -35,4 +32,8 @@ enum State: string {
             ],
         ];
     }
+    case DONE = 'DONE';
+    case EXPIRED = 'EXPIRED';
+
+    case OPEN = 'OPEN';
 }

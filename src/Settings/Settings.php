@@ -21,24 +21,7 @@ class Settings
 
     public function __construct(
         private readonly SettingsProviderInterface $provider,
-    ) {}
-
-    public function getSpaceId(): int
-    {
-        $value = $this->provider->getSpaceId();
-        if (empty($value)) {
-            throw new \InvalidArgumentException('Wallee Space ID is missing or invalid.');
-        }
-        return (int) $value;
-    }
-
-    public function getUserId(): int
-    {
-        $value = $this->provider->getUserId();
-        if (empty($value)) {
-            throw new \InvalidArgumentException('Wallee User ID is missing or invalid.');
-        }
-        return (int) $value;
+    ) {
     }
 
     public function getApiKey(): string
@@ -48,6 +31,39 @@ class Settings
             throw new \InvalidArgumentException('Wallee API Key is missing or invalid.');
         }
         return (string) $value;
+    }
+
+    /**
+     * Returns the API Base URL.
+     * Can be overridden via database setting 'base_url' for Staging/Testing.
+     */
+    public function getBaseUrl(): string
+    {
+        // Try fetching a custom Base URL from the provider.
+        $customUrl = $this->provider->getBaseUrl();
+
+        if (!empty($customUrl) && is_string($customUrl)) {
+            return rtrim($customUrl, '/');
+        }
+
+        // Default to the production environment if no custom URL is provided.
+        return 'https://app-wallee.com';
+    }
+
+    public function getIntegrationMode(): IntegrationMode
+    {
+        // Fallback is also PAYMENT_PAGE to be double safe
+        return $this->provider->getIntegrationMode() ?? IntegrationMode::PAYMENT_PAGE;
+    }
+
+    /**
+     * Gets the configured rounding strategy.
+     * Defaults to RoundingStrategyEnum::BY_LINE_ITEM if missing.
+     */
+    public function getLineItemRoundingStrategy(): RoundingStrategyEnum
+    {
+        // The provider returns ?RoundingStrategyEnum, so we just check for null
+        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategyEnum::BY_LINE_ITEM;
     }
 
     /**
@@ -68,6 +84,24 @@ class Settings
         return self::LOG_LEVEL_INFO;
     }
 
+    public function getSpaceId(): int
+    {
+        $value = $this->provider->getSpaceId();
+        if (empty($value)) {
+            throw new \InvalidArgumentException('Wallee Space ID is missing or invalid.');
+        }
+        return (int) $value;
+    }
+
+    public function getUserId(): int
+    {
+        $value = $this->provider->getUserId();
+        if (empty($value)) {
+            throw new \InvalidArgumentException('Wallee User ID is missing or invalid.');
+        }
+        return (int) $value;
+    }
+
     /**
      * Checks if line item consistency (auto-correction) is enabled.
      * Defaults to TRUE if not explicitly disabled.
@@ -76,38 +110,5 @@ class Settings
     {
         // Default to true if null
         return $this->provider->getLineItemConsistencyEnabled() ?? true;
-    }
-
-    /**
-     * Gets the configured rounding strategy.
-     * Defaults to RoundingStrategyEnum::BY_LINE_ITEM if missing.
-     */
-    public function getLineItemRoundingStrategy(): RoundingStrategyEnum
-    {
-        // The provider returns ?RoundingStrategyEnum, so we just check for null
-        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategyEnum::BY_LINE_ITEM;
-    }
-
-    public function getIntegrationMode(): IntegrationMode
-    {
-        // Fallback is also PAYMENT_PAGE to be double safe
-        return $this->provider->getIntegrationMode() ?? IntegrationMode::PAYMENT_PAGE;
-    }
-
-    /**
-     * Returns the API Base URL.
-     * Can be overridden via database setting 'base_url' for Staging/Testing.
-     */
-    public function getBaseUrl(): string
-    {
-        // 1. Try fetching from Database (Provider)
-        $customUrl = $this->provider->getBaseUrl();
-        
-        if (!empty($customUrl) && is_string($customUrl)) {
-            return rtrim($customUrl, '/');
-        }
-
-        // 2. Default to Production
-        return 'https://app-wallee.com';
     }
 }

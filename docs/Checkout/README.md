@@ -5,7 +5,7 @@ The **Checkout Engine** handles the creation and management of transactions with
 ### Core Concepts
 
 **1. Transaction Context (`TransactionContext`)**
-This is a **Data Transfer Object (DTO)** that represents the state of the customer's cart. It is universal and immutable. You must map your shop's internal order/quote object into this context before interacting with the library.
+This is a **Data Transfer Object (DTO)** that represents the state of the customer's cart. You must map your shop's internal order/quote object into this context before interacting with the library.
 
 It contains:
 
@@ -91,7 +91,6 @@ $context->transactionId = $_SESSION['wallee_transaction_id'] ?? null; // Load ex
 $context->merchantReference = $cart->getId();
 $context->currencyCode = $cart->getCurrency();
 $context->lineItems = $cart->getMappedLineItems();
-// ... map addresses ...
 
 // 2. Execute Upsert
 // This will Update if possible, or Create if necessary.

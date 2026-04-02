@@ -20,7 +20,8 @@ class PaymentMethodService
         private readonly PaymentMethodGatewayInterface $gateway,
         private readonly PaymentMethodRepositoryInterface $repository,
         private readonly LoggerInterface $logger,
-    ) {}
+    ) {
+    }
 
     /**
      * Retrieves a specific payment method by its ID.
@@ -71,10 +72,10 @@ class PaymentMethodService
         $this->logger->debug("Starting payment method synchronization for Space $spaceId.");
 
         try {
-            // 1. Fetch from Gateway
+            // Fetch all payment method configurations from the gateway.
             $configurations = $this->gateway->fetchBySpaceId($spaceId);
 
-            // 2. Bulk Sync to Repository
+            // Synchronize the fetched configurations to the local repository.
             $this->repository->sync($spaceId, $configurations);
 
             $this->logger->debug(sprintf("Synchronized %d payment methods.", count($configurations)));

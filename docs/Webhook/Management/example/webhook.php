@@ -6,10 +6,11 @@ namespace MyPlugin\ExampleWebhookImplementation;
  * Webhook Management Example
  *
  * This script demonstrates the Webhook Management functionality:
- * 1. Installing a Webhook (URL + Listener).
- * 2. Listing Webhook URLs and Listeners.
- * 3. Updating a Webhook URL.
- * 4. Uninstalling a Webhook.
+ * This script demonstrates the Webhook Management functionality:
+ * - Installing a Webhook (URL + Listener).
+ * - Listing Webhook URLs and Listeners.
+ * - Updating a Webhook URL.
+ * - Uninstalling a Webhook.
  *
  * USAGE:
  * php webhook.php
@@ -33,7 +34,7 @@ $logger = $common['logger'];
 $settings = $common['settings'];
 // Webhook example doesn't need persistence or argLoader typically, but they are available.
 
-// 1. Setup Services
+// Setup the required webhook management and signature services.
 $managementGateway = new WebhookManagementGateway($sdkProvider, $logger);
 $signatureGateway = new WebhookSignatureGateway($sdkProvider, $logger);
 
@@ -45,7 +46,7 @@ $webhookService = new WebhookService(
 
 echo "Starting Webhook Management Demo in Space $spaceId...\n\n";
 
-// 2. STEP 1: Installation
+// Install the webhook configuration (URL and Listener) in the portal.
 echo "--- STEP 1: Installing Webhook ---\n";
 // Use uniqid to ensure URL is unique (SDK constraint)
 $uniqueId = uniqid();
@@ -63,7 +64,7 @@ try {
     exit("FAILED: " . $e->getMessage() . "\n");
 }
 
-// 3. STEP 2: Listing
+// List the existing webhook configurations for the space.
 echo "\n--- STEP 2: Listing Webhooks ---\n";
 try {
     $urls = $webhookService->listUrls((int)$spaceId);
@@ -97,7 +98,7 @@ try {
     echo "FAILED: " . $e->getMessage() . "\n";
 }
 
-// 4. STEP 3: Update URL
+// Update the URL of an existing webhook configuration.
 if ($myUrl) {
     echo "\n--- STEP 3: Updating Webhook URL ---\n";
     try {
@@ -109,25 +110,14 @@ if ($myUrl) {
     }
 }
 
-// 5. STEP 4: Uninstall (Cleanup)
+// Uninstall the webhook by removing its listeners.
+// This ensures that the system stops sending events to the callback URL.
 if ($myUrl) {
     echo "\n--- STEP 4: Uninstalling (Cleanup) ---\n";
     try {
-        // We delete listeners for this URL to be clean, or just delete the URL?
-        // WebhookService::deleteWebhookListenersForUrl removes listeners.
-        // There is no single "uninstall" method that removes URL+Listeners in one go in the service I see?
-        // Let's check WebhookService.
-        // It has deleteWebhookListenersForUrl($spaceId, $urlId).
-        // It implies the URL itself might remain unless we delete it via SDK directly?
-        // The service doesn't seem to expose 'deleteUrl'.
-        // However, installWebhook creates both.
-        // For cleanup, let's remove the listeners we added.
-
+        // Remove all listeners associated with the URL.
         $webhookService->deleteWebhookListenersForUrl((int)$spaceId, $myUrl->id);
         echo "SUCCESS: Webhook Listeners removed for URL ID " . $myUrl->id . ".\n";
-
-        // Note: The URL entity likely persists in the portal unless deleted. 
-        // But the service interface for deletion seems focused on listener cleanup.
 
     } catch (\Exception $e) {
         echo "FAILED to uninstall: " . $e->getMessage() . "\n";

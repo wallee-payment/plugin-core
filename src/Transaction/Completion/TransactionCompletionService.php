@@ -15,7 +15,8 @@ readonly class TransactionCompletionService
     public function __construct(
         private TransactionCompletionGatewayInterface $completionGateway,
         private LoggerInterface $logger,
-    ) {}
+    ) {
+    }
 
     /**
      * Captures an authorized transaction.

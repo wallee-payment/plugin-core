@@ -41,7 +41,7 @@ echo "  Usage: php index.php [--debug]\n";
 echo "========================================\n\n";
 
 
-// 1. Initialize Services
+// Initialize core services and providers.
 $settingsProvider = new MyExampleSettingsProvider();
 $settings = new Settings($settingsProvider);
 $sdkProvider = new SdkProvider($settings);
@@ -52,7 +52,7 @@ $stateFetcher = new ExampleStateFetcher();
 $registry = new WebhookListenerRegistry();
 $validator = new StateValidator();
 
-// 2. Register Listeners
+// Register listeners for different webhook event states.
 // Transaction Listener (Handles multiple states via internal routing)
 $txListener = new TransactionListener($logger);
 $txStates = ['CREATE', 'PENDING', 'CONFIRMED', 'PROCESSING', 'AUTHORIZED', 'COMPLETED', 'FULFILL'];
@@ -64,7 +64,7 @@ foreach ($txStates as $state) {
 $rfListener = new RefundListener($logger);
 $registry->addListener(WebhookListener::REFUND, 'SUCCESSFUL', $rfListener);
 
-// 3. Create Processor
+// Instantiate the main webhook processor.
 $processor = new WebhookProcessor($registry, $validator, $lifecycleHandler, $stateFetcher, $logger);
 
 // --- Scenario 1: Transaction Happy Path ---

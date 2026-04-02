@@ -6,12 +6,9 @@ namespace Wallee\PluginCore\Token\Version;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
 
-enum State: string {
+enum State: string
+{
     use ValidatesStateTransitions;
-
-    case UNINITIALIZED = 'UNINITIALIZED';
-    case ACTIVE = 'ACTIVE';
-    case OBSOLETE = 'OBSOLETE';
 
     public static function getTransitionMap(): array
     {
@@ -35,4 +32,8 @@ enum State: string {
             ],
         ];
     }
+    case ACTIVE = 'ACTIVE';
+    case OBSOLETE = 'OBSOLETE';
+
+    case UNINITIALIZED = 'UNINITIALIZED';
 }

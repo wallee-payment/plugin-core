@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Tax;
 
+use Wallee\PluginCore\Render\JsonStringableTrait;
+
 class Tax
 {
+    use JsonStringableTrait;
+
     /**
      * @param string $title The tax title (2-40 characters)
      * @param float $rate The tax rate as a percentage (e.g., 19.0 for 19%)

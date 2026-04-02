@@ -9,17 +9,11 @@ use Wallee\PluginCore\State\ValidatesStateTransitions;
 /**
  * Represents the state of a payment method.
  *
- * @see Wallee\Sdk\Model\CreationEntityState 
+ * @see Wallee\Sdk\Model\CreationEntityState
  */
 enum State: string
 {
     use ValidatesStateTransitions;
-
-    case ACTIVE = 'ACTIVE';
-    case CREATE = 'CREATE';
-    case DELETED = 'DELETED';
-    case DELETING = 'DELETING';
-    case INACTIVE = 'INACTIVE';
 
     public static function getTransitionMap(): array
     {
@@ -48,4 +42,10 @@ enum State: string
             ],
         ];
     }
+
+    case ACTIVE = 'ACTIVE';
+    case CREATE = 'CREATE';
+    case DELETED = 'DELETED';
+    case DELETING = 'DELETING';
+    case INACTIVE = 'INACTIVE';
 }

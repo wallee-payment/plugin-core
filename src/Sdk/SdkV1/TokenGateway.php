@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Sdk\SdkV1;
 
+use Psr\Log\LoggerInterface;
+use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Token\State as StateEnum;
 use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Token\TokenGatewayInterface;
-use Wallee\PluginCore\Token\State as StateEnum;
-use Wallee\Sdk\Service\TokenService as SdkTokenService;
 use Wallee\Sdk\Model\Token as SdkToken;
-use Wallee\PluginCore\Sdk\SdkProvider;
-use Psr\Log\LoggerInterface;
+use Wallee\Sdk\Service\TokenService as SdkTokenService;
 
 /**
  * SDK implementation of the TokenGatewayInterface.

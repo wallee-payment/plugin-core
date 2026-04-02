@@ -6,13 +6,9 @@ namespace Wallee\PluginCore\Transaction\Void;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
 
-enum State: string {
+enum State: string
+{
     use ValidatesStateTransitions;
-
-    case CREATE = 'CREATE';
-    case PENDING = 'PENDING';
-    case FAILED = 'FAILED';
-    case SUCCESSFUL = 'SUCCESSFUL';
 
     public static function getTransitionMap(): array
     {
@@ -38,4 +34,9 @@ enum State: string {
             ],
         ];
     }
+
+    case CREATE = 'CREATE';
+    case FAILED = 'FAILED';
+    case PENDING = 'PENDING';
+    case SUCCESSFUL = 'SUCCESSFUL';
 }

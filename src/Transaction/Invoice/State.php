@@ -6,16 +6,9 @@ namespace Wallee\PluginCore\Transaction\Invoice;
 
 use Wallee\PluginCore\State\ValidatesStateTransitions;
 
-enum State: string {
+enum State: string
+{
     use ValidatesStateTransitions;
-
-    case CREATE = 'CREATE';
-    case OPEN = 'OPEN';
-    case OVERDUE = 'OVERDUE';
-    case CANCELED = 'CANCELED';
-    case PAID = 'PAID';
-    case DERECOGNIZED = 'DERECOGNIZED';
-    case NOT_APPLICABLE = 'NOT_APPLICABLE';
 
     public static function getTransitionMap(): array
     {
@@ -46,4 +39,12 @@ enum State: string {
             ],
         ];
     }
+    case CANCELED = 'CANCELED';
+
+    case CREATE = 'CREATE';
+    case DERECOGNIZED = 'DERECOGNIZED';
+    case NOT_APPLICABLE = 'NOT_APPLICABLE';
+    case OPEN = 'OPEN';
+    case OVERDUE = 'OVERDUE';
+    case PAID = 'PAID';
 }
