@@ -19,7 +19,7 @@ require_once __DIR__ . '/../../../vendor/autoload.php';
 // These helper classes simulate a typical integration environment.
 
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\PaymentMethodGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\PaymentMethodGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Settings\SettingsProviderInterface;
 use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;

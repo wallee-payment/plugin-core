@@ -18,7 +18,7 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 require_once __DIR__ . '/../../examples/Common/bootstrap.php';
 
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionCompletionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionCompletionGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;

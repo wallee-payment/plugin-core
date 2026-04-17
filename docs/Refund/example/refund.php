@@ -19,8 +19,8 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 require_once __DIR__ . '/../../examples/Common/bootstrap.php';
 
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
-use Wallee\PluginCore\Sdk\SdkV2\RefundGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\RefundGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\TransactionService;
 use Wallee\PluginCore\Refund\RefundService;

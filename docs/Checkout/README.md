@@ -63,7 +63,7 @@ Inject the necessary dependencies. In a real application, use your Dependency In
 use Wallee\PluginCore\Transaction\TransactionService;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionGateway;
 // ... other imports
 
 // 1. Setup SDK

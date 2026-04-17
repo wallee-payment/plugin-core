@@ -40,8 +40,8 @@ $context->tokenizationMode = TokenizationModeEnum::FORCE_CREATION;
  use Wallee\PluginCore\Transaction\RecurringTransactionService;
  use Wallee\PluginCore\Transaction\TransactionService;
  use Wallee\PluginCore\Token\TokenService;
- use Wallee\PluginCore\Sdk\SdkV2\RecurringTransactionGateway;
- use Wallee\PluginCore\Sdk\SdkV2\TokenGateway;
+ use Wallee\PluginCore\Sdk\WebServiceAPIV2\RecurringTransactionGateway;
+ use Wallee\PluginCore\Sdk\WebServiceAPIV2\TokenGateway;
  
  // 1. Setup Gateways
  $recurringGateway = new RecurringTransactionGateway($sdkProvider, $logger);

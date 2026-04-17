@@ -9,7 +9,7 @@ use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Tax\Tax;
 use Wallee\PluginCore\Token\TokenizationMode as TokenizationModeEnum;

@@ -20,8 +20,8 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 require_once __DIR__ . '/../../../examples/Common/bootstrap.php';
 
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\WebhookManagementGateway;
-use Wallee\PluginCore\Sdk\SdkV2\WebhookSignatureGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\WebhookManagementGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\WebhookSignatureGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 use Wallee\PluginCore\Transaction\State as TransactionState;

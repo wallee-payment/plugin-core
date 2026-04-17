@@ -18,14 +18,14 @@ error_reporting(E_ALL & ~E_DEPRECATED);
 require_once __DIR__ . '/../../examples/Common/bootstrap.php';
 
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionCompletionGateway;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
-use Wallee\PluginCore\Sdk\SdkV2\RecurringTransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionCompletionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\RecurringTransactionGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Transaction\RecurringTransactionService;
 use Wallee\PluginCore\Transaction\TransactionService;
 use Wallee\PluginCore\Token\TokenService;
-use Wallee\PluginCore\Sdk\SdkV2\TokenGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TokenGateway;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 

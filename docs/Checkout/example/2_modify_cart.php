@@ -13,7 +13,7 @@ use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting as PaymentMethodSorting
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\Sdk\SdkV2\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Tax\Tax;
 use Wallee\PluginCore\Transaction\TransactionContext;
