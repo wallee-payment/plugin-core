@@ -20,7 +20,7 @@ require_once __DIR__ . '/../../../vendor/autoload.php';
 
 
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SdkV1\PaymentMethodGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\PaymentMethodGateway;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Settings\SettingsProviderInterface;
 use Wallee\PluginCore\Settings\IntegrationMode;

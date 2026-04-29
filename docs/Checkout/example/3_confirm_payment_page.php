@@ -5,7 +5,7 @@ namespace MyPlugin\ExampleCheckoutImplementation;
 use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionGateway;
 use Wallee\PluginCore\Transaction\TransactionService;
 
 error_reporting(E_ALL & ~E_DEPRECATED);

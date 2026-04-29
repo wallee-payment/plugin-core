@@ -6,7 +6,8 @@ use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Render\IntegratedPaymentRenderService;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Render\RenderOptions;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionGateway;
 use Wallee\PluginCore\Transaction\TransactionService;
 
 error_reporting(E_ALL & ~E_DEPRECATED);
@@ -58,7 +59,11 @@ try {
     $javascriptUrl = $service->getPaymentUrl((int)$spaceId, $transactionId);
 
     // Render HTML Block
-    $blockHtml = $renderService->render($javascriptUrl, $method->id, $mode, 'payment-form');
+    // The rendered block registers the handler in window.__walleeHandlers[configId],
+    // so frontend frameworks (e.g. Alpine.js) can access handler.startPayment()
+    // from outside the inline script.
+    $data = $renderService->getMetadata($javascriptUrl, $method->id, $mode);
+    $blockHtml = $renderService->renderHtml($data, new RenderOptions(containerId: 'payment-form'));
 
     // Load Host Template & Inject
     $templatePath = __DIR__ . '/resources/integrated_checkout_host.html';

@@ -13,9 +13,9 @@ namespace MyPlugin\ExampleRecurringImplementation;
 
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\Sdk\SdkV1\RecurringTransactionGateway;
-use Wallee\PluginCore\Sdk\SdkV1\TokenGateway;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\RecurringTransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\TokenGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionGateway;
 use Wallee\PluginCore\Token\TokenService;
 use Wallee\PluginCore\Transaction\RecurringTransactionService;
 use Wallee\PluginCore\Transaction\TransactionService;

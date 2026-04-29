@@ -16,8 +16,8 @@ namespace MyPlugin\ExampleWebhookImplementation;
  * php webhook.php
  */
 
-use Wallee\PluginCore\Sdk\SdkV1\WebhookManagementGateway;
-use Wallee\PluginCore\Sdk\SdkV1\WebhookSignatureGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\WebhookManagementGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\WebhookSignatureGateway;
 use Wallee\PluginCore\Transaction\State as TransactionState;
 use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 use Wallee\PluginCore\Webhook\WebhookConfig;

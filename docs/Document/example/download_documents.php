@@ -18,9 +18,9 @@ use Wallee\PluginCore\Document\DocumentService;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Refund\RefundService;
-use Wallee\PluginCore\Sdk\SdkV1\DocumentGateway;
-use Wallee\PluginCore\Sdk\SdkV1\RefundGateway;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\DocumentGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\RefundGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionGateway;
 use Wallee\PluginCore\Transaction\TransactionService;
 
 error_reporting(E_ALL & ~E_DEPRECATED);

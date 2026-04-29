@@ -12,7 +12,7 @@ namespace MyPlugin\ExampleVoidImplementation;
  */
 
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
-use Wallee\PluginCore\Sdk\SdkV1\TransactionCompletionGateway;
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionCompletionGateway;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
 
 error_reporting(E_ALL & ~E_DEPRECATED);

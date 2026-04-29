@@ -25,8 +25,8 @@ If the original transaction does not have a saved token, the service attempts to
  use Wallee\PluginCore\Transaction\RecurringTransactionService;
  use Wallee\PluginCore\Transaction\TransactionService;
  use Wallee\PluginCore\Token\TokenService;
- use Wallee\PluginCore\Sdk\SdkV1\RecurringTransactionGateway;
- use Wallee\PluginCore\Sdk\SdkV1\TokenGateway;
+ use Wallee\PluginCore\Sdk\WebServiceAPIV1\RecurringTransactionGateway;
+ use Wallee\PluginCore\Sdk\WebServiceAPIV1\TokenGateway;
  
  // 1. Setup Gateways
  $recurringGateway = new RecurringTransactionGateway($sdkProvider, $logger);
