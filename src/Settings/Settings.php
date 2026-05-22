@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Settings;
 
-use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
-use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
+use Wallee\PluginCore\LineItem\RoundingStrategy;
+use Wallee\PluginCore\Settings\IntegrationMode;
 
 /**
  * Provides access to validated configuration settings.
@@ -84,16 +84,16 @@ class Settings
      * Gets the configured rounding strategy.
      * Defaults to RoundingStrategy::BY_LINE_ITEM if missing.
      */
-    public function getLineItemRoundingStrategy(): RoundingStrategyEnum
+    public function getLineItemRoundingStrategy(): RoundingStrategy
     {
         // The provider returns ?RoundingStrategy, so we just check for null
-        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategyEnum::BY_LINE_ITEM;
+        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategy::BY_LINE_ITEM;
     }
 
-    public function getIntegrationMode(): IntegrationModeEnum
+    public function getIntegrationMode(): IntegrationMode
     {
         // Fallback is also PAYMENT_PAGE to be double safe
-        return $this->provider->getIntegrationMode() ?? IntegrationModeEnum::PAYMENT_PAGE;
+        return $this->provider->getIntegrationMode() ?? IntegrationMode::PAYMENT_PAGE;
     }
 
     /**

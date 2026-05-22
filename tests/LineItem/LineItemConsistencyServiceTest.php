@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\LineItem\Exception\LineItemConsistencyException;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
-use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
+use Wallee\PluginCore\LineItem\RoundingStrategy;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Settings\SettingsProviderInterface;
@@ -17,7 +17,7 @@ class LineItemConsistencyServiceTest extends TestCase
 {
     private function createService(
         bool $enabled = true,
-        RoundingStrategyEnum $strategy = RoundingStrategyEnum::BY_LINE_ITEM,
+        RoundingStrategy $strategy = RoundingStrategy::BY_LINE_ITEM,
     ): LineItemConsistencyService {
         $provider = $this->createMock(SettingsProviderInterface::class);
         $provider->method('getLineItemConsistencyEnabled')->willReturn($enabled);

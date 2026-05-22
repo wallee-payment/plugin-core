@@ -8,6 +8,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
+use Wallee\PluginCore\PaymentMethod\State;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\PaymentMethodGateway;
@@ -60,9 +61,10 @@ class PaymentMethodGatewayTest extends TestCase
         $this->assertInstanceOf(PaymentMethod::class, $result);
         $this->assertEquals($id, $result->id);
         $this->assertEquals($spaceId, $result->spaceId);
-        $this->assertEquals('ACTIVE', $result->state);
-        $this->assertEquals('Credit Card', $result->name);
-        $this->assertEquals('Pay significantly later', $result->description);
+        $this->assertEquals(State::ACTIVE, $result->state);
+        $this->assertEquals('ACTIVE', $result->state->value);
+        $this->assertEquals('Credit Card', $result->title->localize('en-US'));
+        $this->assertEquals('Pay significantly later', $result->description->localize('en-US'));
         $this->assertEquals(5, $result->sortOrder);
         $this->assertEquals('http://image.url', $result->imageUrl);
     }

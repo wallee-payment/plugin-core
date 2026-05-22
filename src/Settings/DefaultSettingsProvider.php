@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Settings;
 
-use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
-use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
+use Wallee\PluginCore\LineItem\RoundingStrategy;
+use Wallee\PluginCore\Settings\IntegrationMode;
 
 /**
  * Default base class for Settings Providers.
@@ -30,10 +30,10 @@ abstract class DefaultSettingsProvider implements SettingsProviderInterface
         return null;
     }
 
-    public function getIntegrationMode(): IntegrationModeEnum
+    public function getIntegrationMode(): IntegrationMode
     {
         // Default to the standard Hosted Payment Page
-        return IntegrationModeEnum::PAYMENT_PAGE;
+        return IntegrationMode::PAYMENT_PAGE;
     }
 
     public function getBaseUrl(): ?string
@@ -48,7 +48,7 @@ abstract class DefaultSettingsProvider implements SettingsProviderInterface
         return null;
     }
 
-    public function getLineItemRoundingStrategy(): ?RoundingStrategyEnum
+    public function getLineItemRoundingStrategy(): ?RoundingStrategy
     {
         // Return null to let the Settings class default to BY_LINE_ITEM
         return null;

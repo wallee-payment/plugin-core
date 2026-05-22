@@ -6,20 +6,22 @@ namespace Wallee\PluginCore\Sdk\WebServiceAPIV2;
 
 use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\LineItem\LineItem;
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
+use Wallee\PluginCore\PaymentMethod\State as PaymentMethodState;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Tax\Tax;
 use Wallee\PluginCore\Token\State as TokenState;
 use Wallee\PluginCore\Token\Token;
+use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\State as StateEnum;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
-use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\Sdk\Model\Address as SdkAddress;
 use Wallee\Sdk\Model\AddressCreate as SdkAddressCreate;
 use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
@@ -301,11 +303,9 @@ class TransactionGateway implements TransactionGatewayInterface
         return new PaymentMethod(
             id: (int) $sdkPaymentMethodConfiguration->getId(),
             spaceId: (int) $sdkPaymentMethodConfiguration->getLinkedSpaceId(),
-            state: (string) $sdkPaymentMethodConfiguration->getState(),
-            name: $this->resolveLocalization($sdkPaymentMethodConfiguration->getResolvedTitle() ?? $sdkPaymentMethodConfiguration->getName()),
-            title: $sdkPaymentMethodConfiguration->getResolvedTitle() ?? [],
-            description: $this->resolveLocalization($sdkPaymentMethodConfiguration->getResolvedDescription() ?? $sdkPaymentMethodConfiguration->getDescription()),
-            descriptionMap: $sdkPaymentMethodConfiguration->getResolvedDescription() ?? $sdkPaymentMethodConfiguration->getDescription() ?? [],
+            state: PaymentMethodState::from((string) $sdkPaymentMethodConfiguration->getState()),
+            title: new LocalizedString($sdkPaymentMethodConfiguration->getResolvedTitle() ?? $sdkPaymentMethodConfiguration->getName()),
+            description: new LocalizedString($sdkPaymentMethodConfiguration->getResolvedDescription() ?? $sdkPaymentMethodConfiguration->getDescription()),
             sortOrder: (int) $sdkPaymentMethodConfiguration->getSortOrder(),
             imageUrl: $sdkPaymentMethodConfiguration->getResolvedImageUrl(),
         );
@@ -367,15 +367,11 @@ class TransactionGateway implements TransactionGatewayInterface
         $domain->failedOn = $this->toDateTimeImmutable($sdkTransaction->getFailedOn());
         $domain->processingOn = $this->toDateTimeImmutable($sdkTransaction->getProcessingOn());
 
-        $domain->userFailureMessage = $sdkTransaction->getUserFailureMessage();
+        $domain->userFailureMessage = new LocalizedString($sdkTransaction->getUserFailureMessage());
 
         $reason = $sdkTransaction->getFailureReason();
         if ($reason !== null) {
-            $lang = $sdkTransaction->getLanguage();
-            $d = $reason->getDescription() ?? [];
-            $n = $reason->getName() ?? [];
-
-            $domain->failureReason = $d[$lang] ?? $d['en-US'] ?? reset($d) ?: $n[$lang] ?? $n['en-US'] ?? reset($n) ?: null;
+            $domain->failureReason = new LocalizedString($reason->getDescription() ?? $reason->getName());
         }
 
         if ($sdkTransaction->getToken()) {
@@ -391,18 +387,6 @@ class TransactionGateway implements TransactionGatewayInterface
         }
 
         return $domain;
-    }
-
-    /**
-     * @param array<string, string>|string|null $input
-     */
-    private function resolveLocalization(array|string|null $input): ?string
-    {
-        if (!is_array($input)) {
-            return $input;
-        }
-
-        return $input['en-US'] ?? $input['en-GB'] ?? reset($input) ?: null;
     }
 
     public function search(int $spaceId, TransactionSearchCriteria $criteria): array

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV2;
 
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodGatewayInterface;
-use Wallee\PluginCore\Transaction\Exception\TransactionException;
+use Wallee\PluginCore\PaymentMethod\State;
 use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
 use Wallee\Sdk\Service\PaymentMethodConfigurationsService as SdkPaymentMethodConfigurationService;
 
@@ -87,30 +89,13 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
     private function mapToEntity(SdkPaymentMethodConfiguration $config): PaymentMethod
     {
         return new PaymentMethod(
-            id: (int)$config->getId(),
-            spaceId: (int)$config->getLinkedSpaceId(),
-            state: (string)$config->getState(),
-            name: $this->resolveLocalization($config->getResolvedTitle() ?? $config->getName()),
-            title: $config->getResolvedTitle() ?? [],
-            description: $this->resolveLocalization($config->getResolvedDescription() ?? $config->getDescription()),
-            descriptionMap: $config->getResolvedDescription() ?? $config->getDescription() ?? [],
-            sortOrder: (int)$config->getSortOrder(),
+            id: (int) $config->getId(),
+            spaceId: (int) $config->getLinkedSpaceId(),
+            state: State::from((string) $config->getState()),
+            title: new LocalizedString($config->getResolvedTitle() ?? $config->getName()),
+            description: new LocalizedString($config->getResolvedDescription() ?? $config->getDescription()),
+            sortOrder: (int) $config->getSortOrder(),
             imageUrl: $config->getResolvedImageUrl(),
         );
-    }
-
-    /**
-     * Resolves a localized string (which might be an array) to a single string.
-     *
-     * @param array<string, string>|string|null $input
-     * @return string|null
-     */
-    private function resolveLocalization(array|string|null $input): ?string
-    {
-        if (!is_array($input)) {
-            return $input;
-        }
-
-        return $input['en-US'] ?? $input['en-GB'] ?? reset($input) ?: null;
     }
 }
