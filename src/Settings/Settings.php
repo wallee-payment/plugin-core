@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Settings;
 
-use Wallee\PluginCore\LineItem\RoundingStrategy as RoundingStrategyEnum;
+use Wallee\PluginCore\LineItem\RoundingStrategy;
 
 /**
  * Provides access to validated configuration settings.
@@ -58,12 +58,12 @@ class Settings
 
     /**
      * Gets the configured rounding strategy.
-     * Defaults to RoundingStrategyEnum::BY_LINE_ITEM if missing.
+     * Defaults to RoundingStrategy::BY_LINE_ITEM if missing.
      */
-    public function getLineItemRoundingStrategy(): RoundingStrategyEnum
+    public function getLineItemRoundingStrategy(): RoundingStrategy
     {
-        // The provider returns ?RoundingStrategyEnum, so we just check for null
-        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategyEnum::BY_LINE_ITEM;
+        // The provider returns ?RoundingStrategy, so we just check for null
+        return $this->provider->getLineItemRoundingStrategy() ?? RoundingStrategy::BY_LINE_ITEM;
     }
 
     /**

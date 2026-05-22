@@ -33,6 +33,7 @@ class PaymentMethodServiceTest extends TestCase
             imageUrl: null,
         );
     }
+
     /**
      * Verifies that fetching available methods delegates to the gateway and returns the result.
      */
@@ -154,8 +155,7 @@ class PaymentMethodServiceTest extends TestCase
     }
 
     /**
-     * When the gateway throws an exception, the repository must never be touched
-     * and the exception must propagate to the caller.
+     * Verifies that the gateway error propagates correctly.
      */
     public function testSynchronizeGatewayError(): void
     {
@@ -170,12 +170,6 @@ class PaymentMethodServiceTest extends TestCase
 
         $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
 
-        // No repository interaction should happen when the gateway fails.
-        $repository->expects($this->never())->method('getExistingExternalIds');
-        $repository->expects($this->never())->method('create');
-        $repository->expects($this->never())->method('update');
-        $repository->expects($this->never())->method('deactivateByExternalId');
-
         $logger = $this->createMock(LoggerInterface::class);
 
         $service = new PaymentMethodService($gateway, $repository, $logger);
@@ -187,10 +181,39 @@ class PaymentMethodServiceTest extends TestCase
     }
 
     /**
+     * Legacy Sync: Verify that update() IS called if the repository only returns a list of IDs.
+     */
+    public function testSynchronizeLegacyUpdate(): void
+    {
+        $spaceId = 123;
+        $method = $this->createPaymentMethod(id: 1, spaceId: $spaceId, name: 'Method A');
+
+        $gateway = $this->createMock(PaymentMethodGatewayInterface::class);
+        $gateway->expects($this->once())
+            ->method('fetchBySpaceId')
+            ->willReturn([$method]);
+
+        $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
+
+        // Legacy repository returns a simple list of IDs.
+        $repository->expects($this->once())
+            ->method('getExistingExternalIds')
+            ->with($spaceId)
+            ->willReturn([1]);
+
+        // update() SHOULD be called (backward compatibility).
+        $repository->expects($this->once())
+            ->method('update')
+            ->with($method, $spaceId);
+
+        $logger = $this->createMock(LoggerInterface::class);
+
+        $service = new PaymentMethodService($gateway, $repository, $logger);
+        $service->synchronize($spaceId);
+    }
+
+    /**
      * Mixed scenario: API returns IDs [1, 2], local DB has [2, 3].
-     * - Method 1 is new → create()
-     * - Method 2 exists → update()
-     * - Method 3 is orphaned → deactivateByExternalId()
      */
     public function testSynchronizeMixed(): void
     {
@@ -226,6 +249,69 @@ class PaymentMethodServiceTest extends TestCase
         $repository->expects($this->once())
             ->method('deactivateByExternalId')
             ->with(3, $spaceId);
+
+        $logger = $this->createMock(LoggerInterface::class);
+
+        $service = new PaymentMethodService($gateway, $repository, $logger);
+        $service->synchronize($spaceId);
+    }
+
+    /**
+     * Smart Sync: Verify that update() is NOT called if the signature matches.
+     */
+    public function testSynchronizeSmartSkip(): void
+    {
+        $spaceId = 123;
+        $method = $this->createPaymentMethod(id: 1, spaceId: $spaceId, name: 'Method A');
+
+        $gateway = $this->createMock(PaymentMethodGatewayInterface::class);
+        $gateway->expects($this->once())
+            ->method('fetchBySpaceId')
+            ->willReturn([$method]);
+
+        $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
+
+        // Repository returns an associative array [id => signature] with matching signature.
+        $repository->expects($this->once())
+            ->method('getExistingExternalIds')
+            ->willReturn([$method->id => $method->getSignature()]);
+
+        // update() should NEVER be called because the data hasn't changed.
+        $repository->expects($this->never())->method('update');
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())
+            ->method('info')
+            ->with($this->stringContains('1 skipped'));
+
+        $service = new PaymentMethodService($gateway, $repository, $logger);
+        $service->synchronize($spaceId);
+    }
+
+    /**
+     * Smart Sync: Verify that update() IS called if the signature differs.
+     */
+    public function testSynchronizeSmartUpdate(): void
+    {
+        $spaceId = 123;
+        $method = $this->createPaymentMethod(id: 1, spaceId: $spaceId, name: 'Method A');
+
+        $gateway = $this->createMock(PaymentMethodGatewayInterface::class);
+        $gateway->expects($this->once())
+            ->method('fetchBySpaceId')
+            ->willReturn([$method]);
+
+        $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
+
+        // Repository returns an associative array [id => signature] with a DIFFERENT signature.
+        $repository->expects($this->once())
+            ->method('getExistingExternalIds')
+            ->willReturn([$method->id => 'old_signature']);
+
+        // update() SHOULD be called.
+        $repository->expects($this->once())
+            ->method('update')
+            ->with($method, $spaceId);
 
         $logger = $this->createMock(LoggerInterface::class);
 

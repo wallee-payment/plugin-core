@@ -62,4 +62,22 @@ readonly class PaymentMethod
 
         return $path;
     }
+
+    /**
+     * Generates a unique signature representing the current state of the payment method's
+     * meaningful properties. This is used by the synchronization algorithm to detect
+     * changes and prevent unnecessary database writes.
+     *
+     * @return string The md5 hash of the state-relevant properties.
+     */
+    public function getSignature(): string
+    {
+        return \md5(\serialize([
+            $this->state,
+            $this->title->jsonSerialize(),
+            $this->description->jsonSerialize(),
+            $this->sortOrder,
+            $this->imageUrl,
+        ]));
+    }
 }

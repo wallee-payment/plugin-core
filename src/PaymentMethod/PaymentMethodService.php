@@ -81,19 +81,33 @@ class PaymentMethodService
         $this->logger->debug(sprintf('Fetched %d payment methods from the API for space %d.', count($externalMethods), $spaceId));
 
         // Fetch the IDs of methods already persisted in the shop's local database.
-        $existingIds = $this->repository->getExistingExternalIds($spaceId);
-        $this->logger->debug(sprintf('Found %d existing payment method IDs in the local database for space %d.', count($existingIds), $spaceId));
+        // We support both a simple list of IDs [id1, id2] and an associative map [id => signature].
+        /** @var array<int, int|string> $existingData */
+        $existingData = $this->repository->getExistingExternalIds($spaceId);
+        $this->logger->debug(sprintf('Found %d existing payment method records in the local database for space %d.', count($existingData), $spaceId));
+
+        // Detect if the repository provided signatures for smart comparison.
+        $hasSignatures = !empty($existingData) && \is_string(\reset($existingData)) && \is_int(\key($existingData));
 
         // Track which external IDs were processed to detect orphans afterwards.
         $processedIds = [];
         $createdCount = 0;
         $updatedCount = 0;
+        $skippedCount = 0;
 
         // Diff each API method against the local state.
         foreach ($externalMethods as $method) {
             $processedIds[] = $method->id;
 
-            if (in_array($method->id, $existingIds, true)) {
+            $exists = $hasSignatures ? isset($existingData[$method->id]) : \in_array($method->id, $existingData, true);
+
+            if ($exists) {
+                // If we have signatures, compare them to decide if an update is actually needed.
+                if ($hasSignatures && $existingData[$method->id] === $method->getSignature()) {
+                    $skippedCount++;
+                    continue;
+                }
+
                 $this->repository->update($method, $spaceId);
                 $updatedCount++;
             } else {
@@ -103,16 +117,19 @@ class PaymentMethodService
         }
 
         // Orphans are local methods that the API no longer returns.
-        $orphanedIds = array_diff($existingIds, $processedIds);
+        // We extract the actual IDs for comparison.
+        $existingIds = $hasSignatures ? \array_keys($existingData) : $existingData;
+        $orphanedIds = \array_diff($existingIds, $processedIds);
         foreach ($orphanedIds as $orphanedId) {
             $this->repository->deactivateByExternalId($orphanedId, $spaceId);
         }
 
         $this->logger->info(sprintf(
-            'Payment method sync completed for space %d: %d created, %d updated, %d deactivated.',
+            'Payment method sync completed for space %d: %d created, %d updated (%d skipped), %d deactivated.',
             $spaceId,
             $createdCount,
             $updatedCount,
+            $skippedCount,
             count($orphanedIds),
         ));
     }

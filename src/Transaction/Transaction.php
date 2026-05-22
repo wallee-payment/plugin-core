@@ -113,7 +113,7 @@ class Transaction
     public ?LocalizedString $userFailureMessage = null;
 
     /**
-     * @var int The version number required for optimistic locking (Read-Modify-Write).
+     * @var int|null The version number required for optimistic locking (Read-Modify-Write). Nullable for newly created, unsaved transactions.
      */
-    public int $version;
+    public ?int $version = null;
 }

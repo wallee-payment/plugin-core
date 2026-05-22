@@ -7,7 +7,7 @@ namespace Wallee\PluginCore\Transaction;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
-use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting as PaymentMethodSortingEnum;
+use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Exception\TransactionTotalNegativeException;
 
@@ -70,16 +70,16 @@ class TransactionService
      *
      * @param int $spaceId The space ID.
      * @param int $transactionId The transaction ID.
-     * @param PaymentMethodSortingEnum $sortBy The sorting criteria.
+     * @param PaymentMethodSorting $sortBy The sorting criteria.
      * @return PaymentMethod[] The available payment methods.
      */
-    public function getAvailablePaymentMethods(int $spaceId, int $transactionId, PaymentMethodSortingEnum $sortBy = PaymentMethodSortingEnum::DEFAULT): array
+    public function getAvailablePaymentMethods(int $spaceId, int $transactionId, PaymentMethodSorting $sortBy = PaymentMethodSorting::DEFAULT): array
     {
         $this->logger->debug("Fetching available payment methods for Transaction $transactionId in Space $spaceId.");
 
         $methods = $this->gateway->getAvailablePaymentMethods($spaceId, $transactionId);
 
-        if ($sortBy === PaymentMethodSortingEnum::NAME) {
+        if ($sortBy === PaymentMethodSorting::NAME) {
             $this->logger->debug("Sorting payment methods by name.");
             usort($methods, function (PaymentMethod $a, PaymentMethod $b) {
                 // Primary: merchant-configured display order

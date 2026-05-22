@@ -38,6 +38,50 @@ class PaymentMethodTest extends TestCase
     }
 
     /**
+     * Verifies that the signature is consistent and changes when properties change.
+     */
+    public function testGetSignature(): void
+    {
+        $method = new PaymentMethod(
+            85,
+            1,
+            State::ACTIVE,
+            new LocalizedString(['en-US' => 'Credit Card']),
+            new LocalizedString(['en-US' => 'Pay with CC']),
+            10,
+            'https://example.com/cc.png',
+        );
+
+        $signature1 = $method->getSignature();
+        $this->assertIsString($signature1);
+        $this->assertEquals($signature1, $method->getSignature(), 'Signature must be consistent');
+
+        // Change title
+        $method2 = new PaymentMethod(
+            85,
+            1,
+            State::ACTIVE,
+            new LocalizedString(['en-US' => 'New Title']),
+            new LocalizedString(['en-US' => 'Pay with CC']),
+            10,
+            'https://example.com/cc.png',
+        );
+        $this->assertNotEquals($signature1, $method2->getSignature(), 'Signature must change when title changes');
+
+        // Change state
+        $method3 = new PaymentMethod(
+            85,
+            1,
+            State::INACTIVE,
+            new LocalizedString(['en-US' => 'Credit Card']),
+            new LocalizedString(['en-US' => 'Pay with CC']),
+            10,
+            'https://example.com/cc.png',
+        );
+        $this->assertNotEquals($signature1, $method3->getSignature(), 'Signature must change when state changes');
+    }
+
+    /**
      * A null imageUrl must produce an empty string without triggering PHP 8.2 deprecation warnings.
      */
     public function testHandlesNullUrl(): void
@@ -66,13 +110,17 @@ class PaymentMethodTest extends TestCase
 
         $this->assertSame('payment/twint.svg', $method->getRelativeImagePath());
     }
+
+    /**
+     * Verifies JSON serialization.
+     */
     public function testToString(): void
     {
         $method = new PaymentMethod(
             85,
             1,
             State::ACTIVE,
-            new LocalizedString(['en-US' => 'Credit Card', 'de-DE' => 'Kreditkarte']),
+            new LocalizedString(['en-US' => 'Credit Card']),
             new LocalizedString(['en-US' => 'Pay securely with CC']),
             10,
             'https://example.com/cc.png',
