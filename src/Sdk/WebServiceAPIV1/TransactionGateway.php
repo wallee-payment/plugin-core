@@ -6,8 +6,10 @@ namespace Wallee\PluginCore\Sdk\WebServiceAPIV1;
 
 use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\LineItem\LineItem;
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
+use Wallee\PluginCore\PaymentMethod\State as PaymentMethodState;
 use Wallee\PluginCore\PaymentMethodConfiguration\PaymentMethodConfiguration;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
@@ -370,11 +372,9 @@ class TransactionGateway implements TransactionGatewayInterface
         return new PaymentMethod(
             id: (int) $sdkPaymentMethodConfiguration->getId(),
             spaceId: (int) $sdkPaymentMethodConfiguration->getLinkedSpaceId(),
-            state: (string) $sdkPaymentMethodConfiguration->getState(),
-            name: $this->resolveLocalization($sdkPaymentMethodConfiguration->getResolvedTitle() ?? $sdkPaymentMethodConfiguration->getName()),
-            title: $sdkPaymentMethodConfiguration->getResolvedTitle() ?? [],
-            description: $this->resolveLocalization($sdkPaymentMethodConfiguration->getResolvedDescription() ?? $sdkPaymentMethodConfiguration->getDescription()),
-            descriptionMap: $sdkPaymentMethodConfiguration->getResolvedDescription() ?? $sdkPaymentMethodConfiguration->getDescription() ?? [],
+            state: PaymentMethodState::from((string) $sdkPaymentMethodConfiguration->getState()),
+            title: new LocalizedString($sdkPaymentMethodConfiguration->getResolvedTitle() ?? $sdkPaymentMethodConfiguration->getName()),
+            description: new LocalizedString($sdkPaymentMethodConfiguration->getResolvedDescription() ?? $sdkPaymentMethodConfiguration->getDescription()),
             sortOrder: (int) $sdkPaymentMethodConfiguration->getSortOrder(),
             imageUrl: $sdkPaymentMethodConfiguration->getResolvedImageUrl(),
         );
@@ -448,15 +448,15 @@ class TransactionGateway implements TransactionGatewayInterface
         $domain->failedOn = $this->toDateTimeImmutable($sdkTransaction->getFailedOn());
         $domain->processingOn = $this->toDateTimeImmutable($sdkTransaction->getProcessingOn());
 
-        $domain->userFailureMessage = $sdkTransaction->getUserFailureMessage();
+        $domain->userFailureMessage = new LocalizedString($sdkTransaction->getUserFailureMessage());
 
+        // The VO takes ownership of locale resolution, replacing the previous nested ternary chain.
+        // We prefer the description map; if absent, fall back to the name map.
         if ($sdkTransaction->getFailureReason()) {
-            $reason = $sdkTransaction->getFailureReason();
-            $d = $reason->getDescription() ?? [];
-            $n = $reason->getName() ?? [];
-            $lang = $sdkTransaction->getLanguage();
-            // Try description in lang, then en-US, then first available key. Fallback to name.
-            $domain->failureReason = $d[$lang] ?? $d['en-US'] ?? (reset($d) ?: ($n[$lang] ?? $n['en-US'] ?? (reset($n) ?: null)));
+            $domain->failureReason = new LocalizedString(
+                $sdkTransaction->getFailureReason()->getDescription()
+                ?? $sdkTransaction->getFailureReason()->getName(),
+            );
         }
 
         if ($sdkTransaction->getToken()) {
@@ -474,25 +474,7 @@ class TransactionGateway implements TransactionGatewayInterface
         return $domain;
     }
 
-    /**
-     * Resolves a localized string (which might be an array) to a single string.
-     *
-     * @param array<string, string>|string|null $input
-     * @return string|null
-     */
-    private function resolveLocalization(array|string|null $input): ?string
-    {
-        if (is_string($input) || is_null($input)) {
-            return $input;
-        }
 
-        if (is_array($input)) {
-            // Prefer English, fallback to first available
-            return $input['en-US'] ?? $input['en-GB'] ?? reset($input) ?: null;
-        }
-
-        return null;
-    }
 
     /**
      * @inheritDoc

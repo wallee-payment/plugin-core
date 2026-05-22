@@ -63,25 +63,57 @@ class PaymentMethodService
     }
 
     /**
-     * Synchronizes payment methods from the gateway to the repository.
+     * Synchronizes payment methods from the API gateway into the local database.
      *
-     * @param int $spaceId The ID of the space.
+     * This method owns the diffing algorithm: it compares the external API state
+     * against the locally persisted IDs and delegates granular create/update/deactivate
+     * operations to the repository. Client plugins never need to implement this logic.
+     *
+     * @param int $spaceId The ID of the space to synchronize.
+     * @throws \Exception If the gateway request fails; repository methods are never called in that case.
      */
     public function synchronize(int $spaceId): void
     {
-        $this->logger->debug("Starting payment method synchronization for Space $spaceId.");
+        $this->logger->debug(sprintf('Starting payment method synchronization for space %d.', $spaceId));
 
-        try {
-            // Fetch all payment method configurations from the gateway.
-            $configurations = $this->gateway->fetchBySpaceId($spaceId);
+        // Fetch the current state from the API.
+        $externalMethods = $this->gateway->fetchBySpaceId($spaceId);
+        $this->logger->debug(sprintf('Fetched %d payment methods from the API for space %d.', count($externalMethods), $spaceId));
 
-            // Synchronize the fetched configurations to the local repository.
-            $this->repository->sync($spaceId, $configurations);
+        // Fetch the IDs of methods already persisted in the shop's local database.
+        $existingIds = $this->repository->getExistingExternalIds($spaceId);
+        $this->logger->debug(sprintf('Found %d existing payment method IDs in the local database for space %d.', count($existingIds), $spaceId));
 
-            $this->logger->debug(sprintf("Synchronized %d payment methods.", count($configurations)));
-        } catch (\Exception $e) {
-            $this->logger->error("Synchronization failed: " . $e->getMessage());
-            throw $e;
+        // Track which external IDs were processed to detect orphans afterwards.
+        $processedIds = [];
+        $createdCount = 0;
+        $updatedCount = 0;
+
+        // Diff each API method against the local state.
+        foreach ($externalMethods as $method) {
+            $processedIds[] = $method->id;
+
+            if (in_array($method->id, $existingIds, true)) {
+                $this->repository->update($method, $spaceId);
+                $updatedCount++;
+            } else {
+                $this->repository->create($method, $spaceId);
+                $createdCount++;
+            }
         }
+
+        // Orphans are local methods that the API no longer returns.
+        $orphanedIds = array_diff($existingIds, $processedIds);
+        foreach ($orphanedIds as $orphanedId) {
+            $this->repository->deactivateByExternalId($orphanedId, $spaceId);
+        }
+
+        $this->logger->info(sprintf(
+            'Payment method sync completed for space %d: %d created, %d updated, %d deactivated.',
+            $spaceId,
+            $createdCount,
+            $updatedCount,
+            count($orphanedIds),
+        ));
     }
 }

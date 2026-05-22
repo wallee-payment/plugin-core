@@ -82,18 +82,46 @@ class TransactionService
         if ($sortBy === PaymentMethodSortingEnum::NAME) {
             $this->logger->debug("Sorting payment methods by name.");
             usort($methods, function (PaymentMethod $a, PaymentMethod $b) {
-                // Get the first available title (language agnostic)
-                $titleA = $a->title;
-                $titleB = $b->title;
-                $nameA = !empty($titleA) ? reset($titleA) : '';
-                $nameB = !empty($titleB) ? reset($titleB) : '';
-                return strcasecmp((string)$nameA, (string)$nameB);
+                // Primary: merchant-configured display order
+                $orderComparison = $a->sortOrder <=> $b->sortOrder;
+                if ($orderComparison !== 0) {
+                    return $orderComparison;
+                }
+
+                // Secondary tie-breaker: alphabetical by default title
+                return strcasecmp($a->title->getDefault(), $b->title->getDefault());
             });
         }
 
         $this->logger->debug(sprintf("Found %d payment methods.", count($methods)));
 
         return $methods;
+    }
+
+    /**
+     * Gets the user-facing failure message for a transaction.
+     *
+     * Returns the transaction's userFailureMessage when present, otherwise the provided default.
+     * Any error during retrieval is logged and the default message is returned, so this method
+     * is safe to call from frontend controllers without additional try/catch handling.
+     *
+     * @param int $spaceId The space ID.
+     * @param int $transactionId The transaction ID.
+     * @param string $shopLocale The shop's locale (e.g. 'de-DE' or 'en_US') for resolving the localized message.
+     * @param string $defaultMessage Returned when the transaction has no failure message or fetching fails.
+     * @return string
+     */
+    public function getFailureMessage(int $spaceId, int $transactionId, string $shopLocale, string $defaultMessage): string
+    {
+        try {
+            $transaction = $this->getTransaction($spaceId, $transactionId);
+            if ($transaction->userFailureMessage !== null) {
+                return $transaction->userFailureMessage->localize($shopLocale) ?? $defaultMessage;
+            }
+        } catch (\Throwable $e) {
+            $this->logger->debug("Failed to retrieve failure message for Transaction $transactionId in Space $spaceId: {$e->getMessage()}");
+        }
+        return $defaultMessage;
     }
 
     /**
