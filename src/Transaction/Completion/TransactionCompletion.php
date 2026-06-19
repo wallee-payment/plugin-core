@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Transaction\Completion;
 
 use Wallee\PluginCore\LineItem\LineItem;
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Render\JsonStringableTrait;
 
 /**
@@ -15,6 +16,11 @@ use Wallee\PluginCore\Render\JsonStringableTrait;
 class TransactionCompletion
 {
     use JsonStringableTrait;
+
+    /**
+     * @var LocalizedString|null The localized failure reason from the API.
+     */
+    public ?LocalizedString $failureReason = null;
 
     /**
      * @var int The completion ID.

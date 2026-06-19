@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV1;
 
+use Wallee\PluginCore\Sdk\FailureReasonMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Transaction\Completion\State as StateEnum;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletion;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletionGatewayInterface;
+use Wallee\PluginCore\Transaction\Void\State as VoidStateEnum;
+use Wallee\PluginCore\Transaction\Void\TransactionVoid;
 use Wallee\Sdk\Model\TransactionCompletion as SdkTransactionCompletion;
 use Wallee\Sdk\Service\TransactionCompletionService as SdkTransactionCompletionService;
 use Wallee\Sdk\Service\TransactionVoidService as SdkTransactionVoidService;
@@ -20,6 +23,8 @@ use Wallee\Sdk\Service\TransactionVoidService as SdkTransactionVoidService;
  */
 class TransactionCompletionGateway implements TransactionCompletionGatewayInterface
 {
+    use FailureReasonMapperTrait;
+
     public function __construct(
         private readonly SdkProvider $sdkProvider,
     ) {
@@ -60,6 +65,11 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
         $completion->linkedTransactionId = $sdkCompletion->getLinkedTransaction();
         $completion->state = StateEnum::from($sdkCompletion->getState());
 
+        $reason = $sdkCompletion->getFailureReason();
+        if ($reason !== null) {
+            $completion->failureReason = $this->mapSdkFailureReason($reason);
+        }
+
         if ($sdkCompletion->getLineItems()) {
             $completion->lineItems = array_map(function ($sdkItem) {
                 $item = new \Wallee\PluginCore\LineItem\LineItem();
@@ -85,15 +95,23 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
      *
      * @param int $spaceId The space ID.
      * @param int $transactionId The transaction ID to void.
-     * @return string The state of the void operation.
+     * @return TransactionVoid The resulting void domain object.
      */
-    public function void(int $spaceId, int $transactionId): string
+    public function void(int $spaceId, int $transactionId): TransactionVoid
     {
         /** @var SdkTransactionVoidService $service */
         $service = $this->sdkProvider->getService(SdkTransactionVoidService::class);
 
-        $void = $service->voidOnline($spaceId, $transactionId);
+        $sdkVoid = $service->voidOnline($spaceId, $transactionId);
 
-        return (string)$void->getState();
+        $void = new TransactionVoid();
+        $void->state = VoidStateEnum::from((string)$sdkVoid->getState());
+
+        $reason = $sdkVoid->getFailureReason();
+        if ($reason !== null) {
+            $void->failureReason = $this->mapSdkFailureReason($reason);
+        }
+
+        return $void;
     }
 }

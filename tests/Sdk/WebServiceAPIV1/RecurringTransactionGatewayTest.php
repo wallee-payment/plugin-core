@@ -11,6 +11,7 @@ use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV1\RecurringTransactionGateway;
 use Wallee\PluginCore\Transaction\State;
 use Wallee\PluginCore\Transaction\Transaction;
+use Wallee\Sdk\Model\FailureReason as SdkFailureReason;
 use Wallee\Sdk\Model\Transaction as SdkTransaction;
 use Wallee\Sdk\Model\TransactionState as SdkTransactionState;
 use Wallee\Sdk\Service\TransactionService as SdkTransactionService;
@@ -33,6 +34,40 @@ class RecurringTransactionGatewayTest extends TestCase
             ->willReturn($this->transactionService);
 
         $this->gateway = new RecurringTransactionGateway($this->sdkProvider, $this->logger);
+    }
+
+    public function testProcessRecurringPaymentRetainsLocalizedFailureReason(): void
+    {
+        $spaceId = 1;
+        $transactionId = 200;
+
+        $failureReason = new SdkFailureReason();
+        $failureReason->setDescription([
+            'en-US' => 'Card expired',
+            'de-DE' => 'Karte abgelaufen',
+        ]);
+
+        $sdkTransaction = new SdkTransaction();
+        $sdkTransaction->setId($transactionId);
+        $sdkTransaction->setLinkedSpaceId($spaceId);
+        $sdkTransaction->setVersion(1);
+        $sdkTransaction->setState(SdkTransactionState::FAILED);
+        $sdkTransaction->setFailureReason($failureReason);
+        $sdkTransaction->setUserFailureMessage('Your card has expired.');
+
+        $this->transactionService->expects($this->once())
+            ->method('processWithoutUserInteraction')
+            ->with($spaceId, $transactionId)
+            ->willReturn($sdkTransaction);
+
+        $result = $this->gateway->processRecurringPayment($spaceId, $transactionId);
+
+        $this->assertEquals(State::FAILED, $result->state);
+        $this->assertNotNull($result->failureReason);
+        $this->assertSame('Card expired', $result->failureReason->localize('en-US'));
+        $this->assertSame('Karte abgelaufen', $result->failureReason->localize('de-DE'));
+        $this->assertNotNull($result->userFailureMessage);
+        $this->assertSame('Your card has expired.', $result->userFailureMessage->localize('en-US'));
     }
 
     public function testProcessRecurringPaymentReturnsTransaction(): void
