@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Transaction\Completion;
 
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Render\JsonStringableTrait;
 
 /**
@@ -34,4 +35,9 @@ class TransactionCompletion
      * @var list<mixed>|null The line items to capture (null for full capture).
      */
     public ?array $lineItems = null;
+
+    /**
+     * @var LocalizedString|null The localized failure reason from the API.
+     */
+    public ?LocalizedString $failureReason = null;
 }

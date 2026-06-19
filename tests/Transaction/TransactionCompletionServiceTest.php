@@ -7,11 +7,13 @@ namespace Wallee\PluginCore\Tests\Transaction;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
-use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Completion\State;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletion;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletionGatewayInterface;
 use Wallee\PluginCore\Transaction\Completion\TransactionCompletionService;
+use Wallee\PluginCore\Transaction\Exception\TransactionException;
+use Wallee\PluginCore\Transaction\Void\State as VoidState;
+use Wallee\PluginCore\Transaction\Void\TransactionVoid;
 
 class TransactionCompletionServiceTest extends TestCase
 {
@@ -57,15 +59,17 @@ class TransactionCompletionServiceTest extends TestCase
     {
         $spaceId = 1;
         $transactionId = 123;
-        $state = 'SUCCESSFUL';
+        $void = new TransactionVoid();
+        $void->state = VoidState::SUCCESSFUL;
 
         $this->gateway->expects($this->once())
             ->method('void')
             ->with($spaceId, $transactionId)
-            ->willReturn($state);
+            ->willReturn($void);
 
         $result = $this->service->void($spaceId, $transactionId);
-        $this->assertSame($state, $result);
+        $this->assertSame($void, $result);
+        $this->assertSame(VoidState::SUCCESSFUL, $result->state);
     }
 
     public function testVoidFailure(): void

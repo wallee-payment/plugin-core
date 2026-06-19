@@ -9,12 +9,13 @@ use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\TokenGateway;
+use Wallee\PluginCore\Token\Exception\MissingTokenException;
 use Wallee\PluginCore\Token\Token;
+use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
 use Wallee\Sdk\Model\Token as SdkToken;
 use Wallee\Sdk\Model\Transaction as SdkTransaction;
-use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
-use Wallee\Sdk\Service\TransactionsService as SdkTransactionsService;
 use Wallee\Sdk\Service\TokensService as SdkTokensService;
+use Wallee\Sdk\Service\TransactionsService as SdkTransactionsService;
 
 class TokenGatewayTest extends TestCase
 {
@@ -49,6 +50,8 @@ class TokenGatewayTest extends TestCase
         $sdkToken->setLinkedSpaceId($spaceId);
         $sdkToken->setVersion(1);
         $sdkToken->setState(SdkCreationEntityState::ACTIVE);
+        $sdkToken->setCustomerEmailAddress('customer@example.com');
+        $sdkToken->setCreatedOn(new \DateTime('2026-06-19 12:00:00'));
 
         $sdkTransaction = new SdkTransaction();
         $sdkTransaction->setId($transactionId);
@@ -66,9 +69,12 @@ class TokenGatewayTest extends TestCase
         $this->assertEquals(100, $result->id);
         $this->assertEquals($spaceId, $result->spaceId);
         $this->assertEquals('ACTIVE', $result->state->value);
+        $this->assertEquals('customer@example.com', $result->customerIdentifier);
+        $this->assertInstanceOf(\DateTimeImmutable::class, $result->createdOn);
+        $this->assertEquals('2026-06-19 12:00:00', $result->createdOn->format('Y-m-d H:i:s'));
     }
 
-    public function testCreateTokenFallbackIfTokenIsMissing(): void
+    public function testCreateTokenThrowsExceptionIfTokenIsMissing(): void
     {
         $spaceId = 1;
         $transactionId = 2;
@@ -81,19 +87,11 @@ class TokenGatewayTest extends TestCase
             ->method('getPaymentTransactionsId')
             ->willReturn($sdkTransaction);
 
-        $sdkToken = new SdkToken();
-        $sdkToken->setId(101);
-        $sdkToken->setLinkedSpaceId($spaceId);
-        $sdkToken->setVersion(1);
-        $sdkToken->setState(SdkCreationEntityState::ACTIVE);
+        $this->logger->expects($this->once())
+            ->method('error')
+            ->with($this->stringContains('Token creation failed'));
 
-        $this->tokenService->expects($this->once())
-            ->method('postPaymentTokens')
-            ->willReturn($sdkToken);
-
-        $result = $this->gateway->createToken($spaceId, $transactionId);
-
-        $this->assertInstanceOf(Token::class, $result);
-        $this->assertEquals(101, $result->id);
+        $this->expectException(MissingTokenException::class);
+        $this->gateway->createToken($spaceId, $transactionId);
     }
 }
