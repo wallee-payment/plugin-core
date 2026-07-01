@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Transaction;
 
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\LoggerInterface;
-use Wallee\PluginCore\Token\TokenService;
+use Wallee\PluginCore\Token\Exception\MissingTokenException;
+use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionService;
@@ -18,7 +20,6 @@ readonly class RecurringTransactionService
     public function __construct(
         private TransactionService $transactionService,
         private RecurringTransactionGatewayInterface $recurringGateway,
-        private TokenService $tokenService,
         private LoggerInterface $logger,
     ) {
     }
@@ -33,7 +34,10 @@ readonly class RecurringTransactionService
      */
     public function processRecurringPayment(int $spaceId, int $transactionId): Transaction
     {
-        $this->logger->debug("Processing recurring payment for Transaction $transactionId in Space $spaceId.");
+        $this->logger->debug("Processing recurring payment.", [
+            'transactionId' => $transactionId,
+            'spaceId' => $spaceId,
+        ]);
 
         $originalTransaction = $this->transactionService->getTransaction($spaceId, $transactionId);
 
@@ -42,19 +46,24 @@ readonly class RecurringTransactionService
         // so the API automatically generates a token when the payment completes.
         if (!$originalTransaction->token) {
             $this->logger->error(
-                "Transaction $transactionId has no token. "
-                    . "Recurring payments require the original transaction to have been created "
-                    . "with tokenizationMode = FORCE_CREATION.",
+                "Transaction has no token. Recurring payments require the original transaction to have been created with tokenizationMode = FORCE_CREATION.",
+                [
+                    'transactionId' => $transactionId,
+                ],
             );
-            throw new \RuntimeException(
+            throw new MissingTokenException(
                 "Transaction $transactionId has no token. "
                     . "The original transaction must be created with tokenizationMode = FORCE_CREATION "
                     . "to enable recurring payments.",
+                new LocalizedString('The transaction has no token available for recurring payments.'),
             );
         }
 
         if ($originalTransaction->billingAddress === null) {
-            throw new \RuntimeException("Transaction $transactionId has no billing address.");
+            throw new TransactionException(
+                "Transaction $transactionId has no billing address.",
+                new LocalizedString('The transaction is missing a billing address.'),
+            );
         }
 
         $context = TransactionContext::fromTransaction($originalTransaction);
