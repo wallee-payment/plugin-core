@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV1;
 
+use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Webhook\Exception\WebhookSignatureValidationException;
@@ -58,8 +59,7 @@ class WebhookSignatureGateway implements WebhookSignatureGatewayInterface
             );
             throw new WebhookSignatureValidationException(
                 "Webhook signature validation failed: " . $e->getMessage(),
-                null,
-                0,
+                new LocalizedString("Webhook signature validation failed."),
                 $e,
             );
         }
