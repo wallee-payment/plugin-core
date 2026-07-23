@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Transaction;
 
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Token\Exception\MissingTokenException;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
@@ -15,13 +17,16 @@ use Wallee\PluginCore\Transaction\TransactionService;
 /**
  * Service for handling recurring transactions.
  */
-readonly class RecurringTransactionService
+#[LogContext(domain: 'transaction', subdomain: 'recurring')]
+class RecurringTransactionService
 {
+    use DomainLoggerTrait;
     public function __construct(
-        private TransactionService $transactionService,
-        private RecurringTransactionGatewayInterface $recurringGateway,
-        private LoggerInterface $logger,
+        private readonly TransactionService $transactionService,
+        private readonly RecurringTransactionGatewayInterface $recurringGateway,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
     }
 
     /**

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Transaction;
 
 use Wallee\PluginCore\Address\Address;
+use Wallee\PluginCore\Customer\CompanyDetails;
+use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\Localization\LocalizedString;
-use Wallee\PluginCore\Render\JsonStringableTrait;
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 use Wallee\PluginCore\Token\Token;
 
 /**
@@ -86,6 +88,16 @@ class Transaction
      * @var Address|null The shipping address.
      */
     public ?Address $shippingAddress = null;
+
+    /**
+     * @var PersonalDetails|null The customer's personal identity data.
+     */
+    public ?PersonalDetails $personalDetails = null;
+
+    /**
+     * @var CompanyDetails|null The customer's corporate identity data.
+     */
+    public ?CompanyDetails $companyDetails = null;
 
     /**
      * @var \DateTimeImmutable|null The date/time when the transaction was created.

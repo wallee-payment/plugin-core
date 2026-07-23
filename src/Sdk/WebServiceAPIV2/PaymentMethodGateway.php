@@ -5,21 +5,25 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV2;
 
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodCollection;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodGatewayInterface;
 use Wallee\PluginCore\Sdk\PaymentMethodMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Transaction\Exception\TransactionException;
+use Wallee\PluginCore\PaymentMethod\Exception\PaymentMethodException;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
 use Wallee\Sdk\Service\PaymentMethodConfigurationsService as SdkPaymentMethodConfigurationService;
 
 /**
  * Gateway implementation using the SDK V2.
  */
+#[LogContext(domain: 'sync')]
 class PaymentMethodGateway implements PaymentMethodGatewayInterface
 {
+    use DomainLoggerTrait;
     use PaymentMethodMapperTrait;
 
     /**
@@ -28,8 +32,9 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
      */
     public function __construct(
         private readonly SdkProvider $provider,
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
     }
 
     /**
@@ -51,7 +56,7 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
                 'spaceId' => $spaceId,
                 'exception' => $e,
             ]);
-            throw new TransactionException(
+            throw new PaymentMethodException(
                 "Payment method {$id} not found: {$e->getMessage()}",
                 new LocalizedString('Payment method not found.'),
                 $e,
@@ -90,7 +95,7 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
                 'spaceId' => $spaceId,
                 'exception' => $e,
             ]);
-            throw new TransactionException(
+            throw new PaymentMethodException(
                 "Unable to fetch payment methods: {$e->getMessage()}",
                 new LocalizedString('Unable to fetch payment methods.'),
                 $e,

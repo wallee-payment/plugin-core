@@ -6,7 +6,7 @@ namespace Wallee\PluginCore\Http;
 
 use Magento\Framework\App\RequestInterface as MagentoRequest;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
-use Wallee\PluginCore\Render\JsonStringableTrait;
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 
 /**
  * Represents an HTTP request in a framework-agnostic way.

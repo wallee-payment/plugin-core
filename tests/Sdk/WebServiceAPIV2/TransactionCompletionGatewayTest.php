@@ -6,6 +6,7 @@ namespace Wallee\PluginCore\Tests\Sdk\WebServiceAPIV2;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionCompletionGateway;
 use Wallee\PluginCore\Transaction\Completion\State;
@@ -40,7 +41,7 @@ class TransactionCompletionGatewayTest extends TestCase
             ->with(SdkTransactionsService::class)
             ->willReturn($this->transactionsService);
 
-        $this->gateway = new TransactionCompletionGateway($this->sdkProvider);
+        $this->gateway = new TransactionCompletionGateway($this->sdkProvider, $this->createMock(LoggerInterface::class));
     }
 
     /**

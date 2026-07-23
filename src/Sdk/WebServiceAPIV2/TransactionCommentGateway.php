@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV2;
 
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\DateTimeMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
@@ -18,8 +20,10 @@ use Wallee\Sdk\Service\TransactionCommentsService as SdkTransactionCommentServic
 /**
  * Gateway for retrieving transaction comments.
  */
+#[LogContext(domain: 'transaction')]
 class TransactionCommentGateway implements TransactionCommentGatewayInterface
 {
+    use DomainLoggerTrait;
     use DateTimeMapperTrait;
 
     /**
@@ -35,8 +39,9 @@ class TransactionCommentGateway implements TransactionCommentGatewayInterface
      */
     public function __construct(
         private readonly SdkProvider $sdkProvider,
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
         $this->service = $this->sdkProvider->getService(SdkTransactionCommentService::class);
     }
 
@@ -57,7 +62,7 @@ class TransactionCommentGateway implements TransactionCommentGatewayInterface
             $items = (is_object($sdkComments) && method_exists($sdkComments, 'getData')) ? $sdkComments->getData() : (array)$sdkComments;
 
             return new TransactionCommentCollection(...array_map([$this, 'mapToTransactionComment'], $items));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->logger->error(
                 'Failed to fetch transaction comments: {errorMessage}',
                 [

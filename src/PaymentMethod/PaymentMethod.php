@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\PaymentMethod;
 
 use Wallee\PluginCore\Localization\LocalizedString;
-use Wallee\PluginCore\Render\JsonStringableTrait;
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 
 /**
  * Domain entity representing a Payment Method.

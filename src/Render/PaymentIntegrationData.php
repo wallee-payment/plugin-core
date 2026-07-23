@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Render;
 
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
+
 /**
  * DTO containing the raw data required to initialize a payment form in headless or reactive environments.
  *

@@ -7,6 +7,7 @@ namespace Wallee\PluginCore\Tests\Sdk\WebServiceAPIV2;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
+use Wallee\PluginCore\PaymentMethod\Exception\PaymentMethodException;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\State;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
@@ -71,7 +72,7 @@ class PaymentMethodGatewayTest extends TestCase
 
     public function testFetchByIdThrowsExceptionIfNotFound(): void
     {
-        $this->expectException(TransactionException::class);
+        $this->expectException(PaymentMethodException::class);
         $this->expectExceptionMessage('Payment method 10 not found: Not found');
 
         $this->service->expects($this->once())

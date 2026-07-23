@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Document;
 
+use Wallee\PluginCore\Document\Exception\DocumentException;
+
 /**
  * Interface for retrieving rendered documents.
  */

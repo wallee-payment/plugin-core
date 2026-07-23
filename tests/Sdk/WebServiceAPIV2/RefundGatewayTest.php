@@ -8,12 +8,14 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Refund\Exception\RefundException;
+use Wallee\PluginCore\Refund\LineItem\RefundLineItemCollection;
 use Wallee\PluginCore\Refund\Refund;
 use Wallee\PluginCore\Refund\RefundContext;
 use Wallee\PluginCore\Refund\Type as RefundType;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\RefundGateway;
 use Wallee\PluginCore\Transaction\Transaction;
+use Wallee\Sdk\ApiException;
 use Wallee\Sdk\Model\FailureReason as SdkFailureReason;
 use Wallee\Sdk\Model\Refund as SdkRefund;
 use Wallee\Sdk\Model\RefundCreate as SdkRefundCreate;
@@ -98,7 +100,7 @@ class RefundGatewayTest extends TestCase
             10.0,
             'ref-1',
             RefundType::MERCHANT_INITIATED_ONLINE,
-            [],
+            new RefundLineItemCollection(),
         );
 
         $sdkRefund = new SdkRefund();
@@ -134,7 +136,7 @@ class RefundGatewayTest extends TestCase
             10.0,
             'ref-fail',
             RefundType::MERCHANT_INITIATED_ONLINE,
-            [],
+            new RefundLineItemCollection(),
         );
 
         $failureReason = new SdkFailureReason();
@@ -171,7 +173,7 @@ class RefundGatewayTest extends TestCase
             10.0,
             'ref-dates',
             RefundType::MERCHANT_INITIATED_ONLINE,
-            [],
+            new RefundLineItemCollection(),
         );
 
         $createdOn = new \DateTime('2026-01-15T10:00:00+00:00');
@@ -195,5 +197,47 @@ class RefundGatewayTest extends TestCase
         $this->assertSame($failedOn->getTimestamp(), $result->failedOn->getTimestamp());
         $this->assertInstanceOf(\DateTimeImmutable::class, $result->createdOn);
         $this->assertSame($createdOn->getTimestamp(), $result->createdOn->getTimestamp());
+    }
+
+    public function testRefundMarksConnectionExceptionAsRetryable(): void
+    {
+        $context = new RefundContext(
+            2,
+            10.0,
+            'ref-retry',
+            RefundType::MERCHANT_INITIATED_ONLINE,
+            new RefundLineItemCollection(),
+        );
+
+        $this->refundService->method('postPaymentRefunds')
+            ->willThrowException(new ApiException('Connection failed', 0));
+
+        try {
+            $this->gateway->refund(1, $context);
+            $this->fail('Expected a RefundException to be thrown.');
+        } catch (RefundException $e) {
+            $this->assertTrue($e->isRetryable());
+        }
+    }
+
+    public function testRefundDoesNotMarkGenericFailureAsRetryable(): void
+    {
+        $context = new RefundContext(
+            2,
+            10.0,
+            'ref-no-retry',
+            RefundType::MERCHANT_INITIATED_ONLINE,
+            new RefundLineItemCollection(),
+        );
+
+        $this->refundService->method('postPaymentRefunds')
+            ->willThrowException(new \RuntimeException('Something else went wrong.'));
+
+        try {
+            $this->gateway->refund(1, $context);
+            $this->fail('Expected a RefundException to be thrown.');
+        } catch (RefundException $e) {
+            $this->assertFalse($e->isRetryable());
+        }
     }
 }

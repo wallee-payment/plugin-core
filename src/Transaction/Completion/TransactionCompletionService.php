@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Transaction\Completion;
 
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Void\TransactionVoid;
@@ -12,12 +14,15 @@ use Wallee\PluginCore\Transaction\Void\TransactionVoid;
 /**
  * Service for handling transaction completions (Capture, Void).
  */
-readonly class TransactionCompletionService
+#[LogContext(domain: 'transaction', subdomain: 'completion')]
+class TransactionCompletionService
 {
+    use DomainLoggerTrait;
     public function __construct(
-        private TransactionCompletionGatewayInterface $completionGateway,
-        private LoggerInterface $logger,
+        private readonly TransactionCompletionGatewayInterface $completionGateway,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
     }
 
     /**
