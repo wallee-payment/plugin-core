@@ -3,10 +3,13 @@
 namespace MyPlugin\ExampleCheckoutImplementation;
 
 use Wallee\PluginCore\Address\Address;
+use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\LineItem\LineItem;
+use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionGateway;
+use Wallee\PluginCore\SharedKernel\Url;
 use Wallee\PluginCore\Tax\Tax;
 use Wallee\PluginCore\Token\TokenizationMode as TokenizationModeEnum;
 use Wallee\PluginCore\Transaction\TransactionContext;
@@ -47,8 +50,8 @@ $context->language = 'en-US';
 $context->customerId = 'guest-123';
 $context->transactionId = null;
 
-$context->successUrl = 'https://example.com/success';
-$context->failedUrl = 'https://example.com/fail';
+$context->successUrl = new Url('https://example.com/success');
+$context->failedUrl = new Url('https://example.com/fail');
 
 // Enable tokenization so the API creates a token with payment credentials
 // when the transaction completes. This is required for recurring payments.
@@ -57,14 +60,18 @@ $context->tokenizationMode = TokenizationModeEnum::FORCE_CREATION;
 
 $billing = new Address();
 
-$billing->givenName = 'John';
-$billing->familyName = 'Doe';
 $billing->street = 'Bahnhofstrasse 1';
 $billing->city = 'Zurich';
 $billing->postcode = '8000';
 $billing->country = 'CH';
-$billing->emailAddress = 'test@example.com';
 $context->billingAddress = $billing;
+
+// Identity data lives on the Customer domain objects, not the Address.
+$context->personalDetails = new PersonalDetails(
+    emailAddress: 'test@example.com',
+    familyName: 'Doe',
+    givenName: 'John',
+);
 
 $item = new LineItem();
 $item->uniqueId = 'sku-123';
@@ -74,7 +81,7 @@ $item->quantity = 1;
 $item->amountIncludingTax = 150.00;
 $item->type = LineItem::TYPE_PRODUCT;
 $item->addTax(new Tax('VAT', 7.7));
-$context->lineItems = [$item];
+$context->lineItems = new LineItemCollection($item);
 $context->expectedGrandTotal = 150.00;
 
 // Execute the upsert operation to create the transaction in the portal.

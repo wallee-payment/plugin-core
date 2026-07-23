@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Wallee\PluginCore\Render;
+namespace Wallee\PluginCore\SharedKernel;
 
 /**
  * Trait JsonStringableTrait

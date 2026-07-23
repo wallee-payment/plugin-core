@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV1;
 
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\TokenMapperTrait;
@@ -17,8 +19,10 @@ use Wallee\Sdk\Service\TokenService as SdkTokenService;
 /**
  * SDK implementation of the TokenGatewayInterface for API V1.
  */
+#[LogContext(domain: 'transaction', subdomain: 'recurring')]
 class TokenGateway implements TokenGatewayInterface
 {
+    use DomainLoggerTrait;
     use TokenMapperTrait;
 
     /**
@@ -34,8 +38,9 @@ class TokenGateway implements TokenGatewayInterface
      */
     public function __construct(
         private readonly SdkProvider $sdkProvider,
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
         $this->tokenService = $this->sdkProvider->getService(SdkTokenService::class);
     }
 
@@ -79,7 +84,7 @@ class TokenGateway implements TokenGatewayInterface
             }
 
             return $this->mapToToken($sdkToken, $spaceId);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (!($e instanceof MissingTokenException)) {
                 $this->logger->error(
                     'Failed to create token for transaction: {errorMessage}',

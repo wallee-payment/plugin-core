@@ -3,12 +3,15 @@
 namespace MyPlugin\ExampleCheckoutImplementation;
 
 use Wallee\PluginCore\Address\Address;
+use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\Examples\Common\FilePersistence;
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
 use Wallee\PluginCore\LineItem\LineItem;
+use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
 use Wallee\PluginCore\Sdk\WebServiceAPIV1\TransactionGateway;
+use Wallee\PluginCore\SharedKernel\Url;
 use Wallee\PluginCore\Tax\Tax;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionService;
@@ -51,18 +54,22 @@ function create_base_context($spaceId, $txId, $ref): TransactionContext
     $context->transactionId = $txId;
 
     $context->customerId = 'guest-123';
-    $context->successUrl = 'https://example.com/success';
-    $context->failedUrl = 'https://example.com/fail';
+    $context->successUrl = new Url('https://example.com/success');
+    $context->failedUrl = new Url('https://example.com/fail');
 
     $billing = new Address();
-    $billing->givenName = 'John';
-    $billing->familyName = 'Doe';
     $billing->street = 'Bahnhofstrasse 1';
     $billing->city = 'Zurich';
     $billing->postcode = '8000';
     $billing->country = 'CH';
-    $billing->emailAddress = 'test@example.com';
     $context->billingAddress = $billing;
+
+    // Identity data lives on the Customer domain objects, not the Address.
+    $context->personalDetails = new PersonalDetails(
+        emailAddress: 'test@example.com',
+        familyName: 'Doe',
+        givenName: 'John',
+    );
 
     return $context;
 }
@@ -100,7 +107,7 @@ $item1->amountIncludingTax = 300.00; // 150 * 2
 $item1->type = LineItem::TYPE_PRODUCT;
 $item1->addTax(new Tax('VAT', 7.7));
 
-$context->lineItems = [$item1];
+$context->lineItems = new LineItemCollection($item1);
 $context->expectedGrandTotal = 300.00;
 
 try {
@@ -129,7 +136,7 @@ $item2->amountIncludingTax = 50.00;
 $item2->type = LineItem::TYPE_PRODUCT;
 $item2->addTax(new Tax('VAT', 7.7));
 
-$context->lineItems = [$item1, $item2]; // Watch(2) + Strap(1)
+$context->lineItems = new LineItemCollection($item1, $item2); // Watch(2) + Strap(1)
 $context->expectedGrandTotal = 350.00;
 
 try {
@@ -157,7 +164,7 @@ $item3->amountIncludingTax = -35.00; // 10% of 350
 $item3->type = LineItem::TYPE_DISCOUNT;
 $item3->addTax(new Tax('VAT', 7.7));
 
-$context->lineItems = [$item1, $item2, $item3]; // Watch(2) + Strap(1) + Discount
+$context->lineItems = new LineItemCollection($item1, $item2, $item3); // Watch(2) + Strap(1) + Discount
 $context->expectedGrandTotal = 315.00;
 
 try {

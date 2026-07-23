@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV1;
 
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Webhook\Exception\WebhookSignatureValidationException;
@@ -16,8 +18,10 @@ use Wallee\Sdk\Service\WebhookEncryptionService as SdkWebhookEncryptionService;
  *
  * Implementation of the WebhookSignatureGatewayInterface using the Wallee SDK.
  */
+#[LogContext(domain: 'webhook')]
 class WebhookSignatureGateway implements WebhookSignatureGatewayInterface
 {
+    use DomainLoggerTrait;
     /**
      * @var SdkWebhookEncryptionService
      */
@@ -31,8 +35,9 @@ class WebhookSignatureGateway implements WebhookSignatureGatewayInterface
      */
     public function __construct(
         private readonly SdkProvider $sdkProvider,
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
         $this->webhookEncryptionService = $this->sdkProvider->getService(SdkWebhookEncryptionService::class);
     }
 
@@ -48,7 +53,7 @@ class WebhookSignatureGateway implements WebhookSignatureGatewayInterface
     {
         try {
             return (bool)$this->webhookEncryptionService->isContentValid($signatureHeader, $payload);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // TODO: Include spaceId and transactionId in log context when available
             $this->logger->error(
                 'Webhook signature validation failed: {errorMessage}',

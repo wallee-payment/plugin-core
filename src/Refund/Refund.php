@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Refund;
 
+use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\Localization\LocalizedString;
-use Wallee\PluginCore\Render\JsonStringableTrait;
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 
 /**
  * Domain entity representing a Refund.
@@ -43,6 +44,19 @@ class Refund
      * @var int
      */
     public int $id;
+
+    /**
+     * @var LineItemCollection|null The line items included in the refund,
+     *      representing the reductions that were applied.
+     */
+    public ?LineItemCollection $lineItems = null;
+
+    /**
+     * @var LineItemCollection|null The line items of the original transaction,
+     *      adjusted to reflect all reductions applied so far — i.e. the
+     *      post-refund cart state, which is what remains refundable.
+     */
+    public ?LineItemCollection $reducedLineItems = null;
 
     /**
      * @var State

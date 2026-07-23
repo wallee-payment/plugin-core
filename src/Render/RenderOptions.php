@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Render;
 
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
+
 /**
  * Data Transfer Object for payment rendering options.
  *

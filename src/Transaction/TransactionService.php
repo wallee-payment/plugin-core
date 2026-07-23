@@ -6,6 +6,8 @@ namespace Wallee\PluginCore\Transaction;
 
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Localization\LocalizedString;
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodCollection;
@@ -13,13 +15,16 @@ use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Exception\TransactionTotalNegativeException;
 
+#[LogContext(domain: 'transaction', subdomain: 'checkout')]
 class TransactionService
 {
+    use DomainLoggerTrait;
     public function __construct(
         private readonly TransactionGatewayInterface $gateway,
         private readonly LineItemConsistencyService $consistencyService,
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
     }
 
     /**
@@ -38,17 +43,17 @@ class TransactionService
             ]);
 
             if (($context->expectedGrandTotal ?? 0.0) < -0.00000001) {
-                $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems)->all();
+                $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems->all());
                 $context->expectedGrandTotal = 0.0;
             }
 
             $context->lineItems = $this->consistencyService->ensureConsistency(
-                $context->lineItems,
+                $context->lineItems->all(),
                 $context->expectedGrandTotal,
                 $context->currencyCode,
                 $context->spaceId,
                 $context->transactionId,
-            )->all();
+            );
 
             $this->validateContext($context);
 
@@ -287,7 +292,7 @@ class TransactionService
                 }
 
                 if (($context->expectedGrandTotal ?? 0.0) < -0.00000001) {
-                    $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems)->all();
+                    $context->lineItems = $this->consistencyService->sanitizeNegativeLineItems($context->lineItems->all());
                     $context->expectedGrandTotal = 0.0;
                 }
 

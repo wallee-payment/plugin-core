@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\PaymentMethod;
 
+use Wallee\PluginCore\Log\DomainLoggerTrait;
+use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 
 /**
  * Service for managing payment methods.
  */
+#[LogContext(domain: 'sync')]
 class PaymentMethodService
 {
+    use DomainLoggerTrait;
     /**
      * @param PaymentMethodGatewayInterface $gateway The gateway to fetch payment methods.
      * @param PaymentMethodRepositoryInterface $repository The repository to store payment methods.
@@ -19,8 +23,9 @@ class PaymentMethodService
     public function __construct(
         private readonly PaymentMethodGatewayInterface $gateway,
         private readonly PaymentMethodRepositoryInterface $repository,
-        private readonly LoggerInterface $logger,
+        LoggerInterface $logger,
     ) {
+        $this->initializeLogger($logger);
     }
 
     /**

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Document;
 
-use Wallee\PluginCore\Render\JsonStringableTrait;
+use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 
 /**
  * Domain entity representing a rendered document (PDF).
