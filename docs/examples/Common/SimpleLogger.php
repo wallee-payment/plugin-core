@@ -5,6 +5,8 @@ namespace Wallee\PluginCore\Examples\Common;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Stringable;
 
+// 📖 Concept documentation: See docs/examples/Common/README.md
+
 class SimpleLogger implements \Wallee\PluginCore\Log\LoggerInterface
 {
     public function emergency(Stringable|string $message, array $context = []): void

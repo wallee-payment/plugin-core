@@ -10,7 +10,6 @@ use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemAttribute;
 use Wallee\PluginCore\LineItem\LineItemAttributeCollection;
-use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
@@ -29,7 +28,6 @@ use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 use Wallee\Sdk\ApiException;
-use Wallee\Sdk\Http\ConnectionException;
 use Wallee\Sdk\Model\AddressCreate as SdkAddressCreate;
 use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
 use Wallee\Sdk\Model\CriteriaOperator as SdkCriteriaOperator;
@@ -112,10 +110,12 @@ class TransactionGateway implements TransactionGatewayInterface
                 'transactionId' => $transactionId,
                 'spaceId' => $spaceId,
             ]);
-            throw new TransactionException(
-                "Unable to confirm transaction {$transactionId}: " . $e->getMessage(),
-                new LocalizedString('Unable to confirm the transaction.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'confirm',
+                ['spaceId' => $spaceId, 'transactionId' => $transactionId],
+                'Unable to confirm the transaction.',
             );
         }
     }
@@ -193,10 +193,12 @@ class TransactionGateway implements TransactionGatewayInterface
             return $this->mapToTransaction($sdkTransaction);
         } catch (\Throwable $e) {
             $this->logger->error("Gateway: Failed to create transaction.", ['exception' => $e]);
-            throw new TransactionException(
-                'Unable to create transaction: ' . $e->getMessage(),
-                new LocalizedString('Unable to create transaction.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'create',
+                ['spaceId' => $context->spaceId],
+                'Unable to create transaction.',
             );
         }
     }
@@ -216,7 +218,7 @@ class TransactionGateway implements TransactionGatewayInterface
         } catch (\Throwable $e) {
             if ($e instanceof ApiException && $e->getCode() === 404) {
                 $this->logger->debug(
-                    'Gateway: Transaction {transactionId} not found in Space {spaceId}.',
+                    'Gateway: Transaction not found.',
                     [
                         'spaceId' => $spaceId,
                         'transactionId' => $transactionId,
@@ -226,7 +228,7 @@ class TransactionGateway implements TransactionGatewayInterface
             }
 
             $this->logger->error(
-                'Gateway: Failed to find transaction: {errorMessage}',
+                'Gateway: Failed to find transaction.',
                 [
                     'errorMessage' => $e->getMessage(),
                     'exception' => $e,
@@ -234,10 +236,12 @@ class TransactionGateway implements TransactionGatewayInterface
                     'transactionId' => $transactionId,
                 ],
             );
-            throw new TransactionException(
-                "Failed to find transaction {$transactionId}: " . $e->getMessage(),
-                new LocalizedString('Unable to read the transaction.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'read',
+                ['spaceId' => $spaceId, 'transactionId' => $transactionId],
+                'Unable to read the transaction.',
             );
         }
     }
@@ -270,10 +274,12 @@ class TransactionGateway implements TransactionGatewayInterface
             return $result;
         } catch (\Throwable $e) {
             $this->logger->error("Gateway: Failed to read transaction.", ['exception' => $e]);
-            throw new TransactionException(
-                "Unable to read transaction {$transactionId}: " . $e->getMessage(),
-                new LocalizedString('Unable to read the transaction.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'read',
+                ['spaceId' => $spaceId, 'transactionId' => $transactionId],
+                'Unable to read the transaction.',
             );
         }
     }
@@ -303,10 +309,12 @@ class TransactionGateway implements TransactionGatewayInterface
                 'transactionId' => $transactionId,
                 'spaceId' => $spaceId,
             ]);
-            throw new TransactionException(
-                "Unable to fetch payment methods for transaction {$transactionId}: " . $e->getMessage(),
-                new LocalizedString('Unable to fetch the available payment methods.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'fetchPaymentMethods',
+                ['spaceId' => $spaceId, 'transactionId' => $transactionId],
+                'Unable to fetch the available payment methods.',
             );
         }
     }
@@ -343,10 +351,12 @@ class TransactionGateway implements TransactionGatewayInterface
                 'exception' => $e,
                 'spaceId' => $spaceId,
             ]);
-            throw new TransactionException(
-                'Unable to fetch payment method configurations: ' . $e->getMessage(),
-                new LocalizedString('Unable to fetch the payment method configurations.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'search',
+                ['spaceId' => $spaceId],
+                'Unable to fetch the payment method configurations.',
             );
         }
     }
@@ -389,10 +399,12 @@ class TransactionGateway implements TransactionGatewayInterface
                 'transactionId' => $transactionId,
                 'spaceId' => $spaceId,
             ]);
-            throw new TransactionException(
-                "Unable to fetch payment URL for transaction {$transactionId}: " . $e->getMessage(),
-                new LocalizedString('Unable to fetch the payment URL.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'paymentPageUrl',
+                ['spaceId' => $spaceId, 'transactionId' => $transactionId],
+                'Unable to fetch the payment URL.',
             );
         }
     }
@@ -571,10 +583,12 @@ class TransactionGateway implements TransactionGatewayInterface
             return new TransactionCollection(...array_map([$this, 'mapToTransaction'], $results));
         } catch (\Throwable $e) {
             $this->logger->error("Gateway: Failed to search transactions.", ['exception' => $e]);
-            throw new TransactionException(
-                'Unable to search transactions: ' . $e->getMessage(),
-                new LocalizedString('Unable to search transactions.'),
+            throw SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'search',
+                ['spaceId' => $spaceId],
+                'Unable to search transactions.',
             );
         }
     }
@@ -621,15 +635,18 @@ class TransactionGateway implements TransactionGatewayInterface
             return $this->mapToTransaction($sdkTransaction);
         } catch (\Throwable $e) {
             $this->logger->error("Gateway: Failed to update transaction.", ['exception' => $e]);
-            $exception = new TransactionException(
-                "Unable to update transaction {$transactionId}: " . $e->getMessage(),
-                new LocalizedString('Unable to update the transaction.'),
+            $exception = SdkProvider::wrapException(
                 $e,
+                TransactionException::class,
+                'update',
+                ['spaceId' => $context->spaceId, 'transactionId' => $transactionId],
+                'Unable to update the transaction.',
             );
 
             // A version conflict means another process updated the transaction concurrently;
-            // re-reading and retrying is expected to succeed. A connection error is transient.
-            if ($e instanceof VersioningException || $e instanceof ConnectionException) {
+            // re-reading and retrying is expected to succeed. Connection failures are
+            // classified centrally in SdkProvider::wrapException().
+            if ($e instanceof VersioningException) {
                 $exception->withRetryable(true);
             }
 

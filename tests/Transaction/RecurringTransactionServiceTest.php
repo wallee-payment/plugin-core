@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Address\Address;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Token\Exception\MissingTokenException;
+use Wallee\PluginCore\Token\State as TokenState;
 use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\RecurringTransactionGatewayInterface;
@@ -53,8 +54,7 @@ class RecurringTransactionServiceTest extends TestCase
         $originalTransaction->customerId = 'CUST-001';
         $originalTransaction->currency = 'USD';
 
-        $token = new Token();
-        $token->id = 555;
+        $token = new Token(id: 555, state: TokenState::ACTIVE);
         $originalTransaction->token = $token;
 
         $address = new Address();
@@ -106,8 +106,7 @@ class RecurringTransactionServiceTest extends TestCase
         $originalTransaction->id = $transactionId;
         $originalTransaction->spaceId = $spaceId;
 
-        $token = new Token();
-        $token->id = 555;
+        $token = new Token(id: 555, state: TokenState::ACTIVE);
         $originalTransaction->token = $token;
         $originalTransaction->billingAddress = null;
 

@@ -9,7 +9,7 @@ use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 /**
  * Class WebhookListener
  *
- * DTO representing a Webhook Listener in the portal.
+ * DTO representing a Webhook Listener in the Wallee Portal.
  */
 class WebhookListener
 {

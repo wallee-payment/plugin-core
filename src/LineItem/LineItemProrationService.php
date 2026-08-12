@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\LineItem;
 
-use Wallee\PluginCore\Currency\CurrencyRoundingService;
+use Wallee\PluginCore\GlobalData\Currency\CurrencyRoundingService;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;

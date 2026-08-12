@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Tests\Sdk;
 
 use PHPUnit\Framework\TestCase;
+use Wallee\PluginCore\GlobalData\Exception\GlobalDataException;
+use Wallee\PluginCore\Refund\Exception\RefundException;
+use Wallee\PluginCore\Sdk\ClientMetadata;
+use Wallee\PluginCore\Sdk\ClientMetadataProviderInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\Sdk\ApiClient;
+use Wallee\Sdk\ApiException;
+use Wallee\Sdk\Http\ConnectionException;
 use Wallee\Sdk\Service\TransactionService; // Example service
 
 class SdkProviderTest extends TestCase
@@ -55,6 +61,62 @@ class SdkProviderTest extends TestCase
                 'https://app-wallee.com/api',
             ],
         ];
+    }
+
+    /**
+     * Verifies that the SDK's own default headers survive the metadata being added.
+     */
+    public function testClientMetadataDoesNotDisplaceTheSdksOwnDefaultHeaders(): void
+    {
+        $withoutMetadata = (new SdkProvider($this->settingsMock))->getApiClient()->getDefaultHeaders();
+
+        $provider = $this->createMock(ClientMetadataProviderInterface::class);
+        $provider->method('getClientMetadata')
+            ->willReturn(new ClientMetadata('magento', '2.4.9', '1.2.0'));
+
+        $withMetadata = (new SdkProvider($this->settingsMock, $provider))
+            ->getApiClient()
+            ->getDefaultHeaders();
+
+        foreach ($withoutMetadata as $name => $value) {
+            $this->assertArrayHasKey($name, $withMetadata);
+            $this->assertSame($value, $withMetadata[$name]);
+        }
+    }
+
+    /**
+     * Verifies that a supplied ClientMetadataProvider registers all four
+     * identification headers on the instantiated SDK client.
+     */
+    public function testClientMetadataHeadersAreRegisteredOnTheApiClient(): void
+    {
+        $provider = $this->createMock(ClientMetadataProviderInterface::class);
+        $provider->method('getClientMetadata')
+            ->willReturn(new ClientMetadata('magento', '2.4.9', '1.2.0'));
+
+        $sdkProvider = new SdkProvider($this->settingsMock, $provider);
+        $headers = $sdkProvider->getApiClient()->getDefaultHeaders();
+
+        $this->assertSame('magento', $headers['x-meta-shop-system']);
+        $this->assertSame('2.4.9', $headers['x-meta-shop-system-version']);
+        $this->assertSame('magento-2.4', $headers['x-meta-shop-system-and-version']);
+        $this->assertSame('1.2.0', $headers['x-meta-plugin-version']);
+    }
+
+    /**
+     * Verifies that a provider answering null is a supported outcome, not a failure:
+     * an integration that cannot determine its versions still works.
+     */
+    public function testClientMetadataProviderReturningNullAddsNoHeaders(): void
+    {
+        $provider = $this->createMock(ClientMetadataProviderInterface::class);
+        $provider->method('getClientMetadata')->willReturn(null);
+
+        $sdkProvider = new SdkProvider($this->settingsMock, $provider);
+        $headers = $sdkProvider->getApiClient()->getDefaultHeaders();
+
+        $this->assertArrayNotHasKey('x-meta-shop-system', $headers);
+        $this->assertArrayNotHasKey('x-meta-plugin-version', $headers);
     }
 
     /**
@@ -118,6 +180,19 @@ class SdkProviderTest extends TestCase
     }
 
     /**
+     * Verifies that omitting the provider entirely leaves no identification headers.
+     */
+    public function testNoClientMetadataProviderAddsNoHeaders(): void
+    {
+        $headers = (new SdkProvider($this->settingsMock))->getApiClient()->getDefaultHeaders();
+
+        $this->assertArrayNotHasKey('x-meta-shop-system', $headers);
+        $this->assertArrayNotHasKey('x-meta-shop-system-version', $headers);
+        $this->assertArrayNotHasKey('x-meta-shop-system-and-version', $headers);
+        $this->assertArrayNotHasKey('x-meta-plugin-version', $headers);
+    }
+
+    /**
      * Verifies the "Smart URL" logic that automatically adds the API path if it's missing from the base URL.
      *
      * @dataProvider smartUrlDataProvider
@@ -137,6 +212,47 @@ class SdkProviderTest extends TestCase
 
         // --- Assert ---
         $this->assertSame($expectedBasePath, $apiClient->getBasePath());
+    }
+
+    public function testWrapExceptionAppliesTheSameClassificationToEveryDomain(): void
+    {
+        // The point of classifying centrally: a domain that never touches
+        // withRetryable() still reports a connection failure as retryable.
+        $wrapped = SdkProvider::wrapException(
+            new ConnectionException(),
+            GlobalDataException::class,
+            'getCurrencies',
+            [],
+            'Reference data is temporarily unavailable.',
+        );
+
+        $this->assertTrue($wrapped->isRetryable());
+    }
+
+    public function testWrapExceptionMarksConnectionFailuresAsRetryable(): void
+    {
+        $wrapped = SdkProvider::wrapException(
+            new ConnectionException(),
+            RefundException::class,
+            'refund',
+            ['spaceId' => 42],
+            'The payment service is temporarily unreachable.',
+        );
+
+        $this->assertTrue($wrapped->isRetryable());
+    }
+
+    public function testWrapExceptionTreatsApiRejectionsAsTerminal(): void
+    {
+        $wrapped = SdkProvider::wrapException(
+            new ApiException('Bad Request', 400),
+            RefundException::class,
+            'refund',
+            ['spaceId' => 42],
+            'The refund was rejected.',
+        );
+
+        $this->assertFalse($wrapped->isRetryable());
     }
 
 }

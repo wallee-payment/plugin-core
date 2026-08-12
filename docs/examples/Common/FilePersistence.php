@@ -4,6 +4,8 @@ namespace Wallee\PluginCore\Examples\Common;
 
 use Wallee\PluginCore\Transaction\TransactionPersistenceInterface;
 
+// 📖 Concept documentation: See docs/examples/Common/README.md
+
 class FilePersistence implements \Wallee\PluginCore\Transaction\TransactionPersistenceInterface
 {
     private string $filePath;
