@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\LineItem;
 
-use Wallee\PluginCore\Currency\CurrencyRoundingService;
+use Wallee\PluginCore\GlobalData\Currency\CurrencyRoundingService;
 use Wallee\PluginCore\LineItem\Exception\LineItemConsistencyException;
 use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\Localization\LocalizedString;

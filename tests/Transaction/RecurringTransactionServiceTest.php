@@ -13,6 +13,7 @@ use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionService;
 use Wallee\PluginCore\Token\Exception\MissingTokenException;
+use Wallee\PluginCore\Token\State as TokenState;
 use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Address\Address;
 
@@ -48,8 +49,7 @@ class RecurringTransactionServiceTest extends TestCase
         $originalTransaction->customerId = 'CUST-001';
         $originalTransaction->currency = 'USD';
 
-        $token = new Token();
-        $token->id = 555;
+        $token = new Token(id: 555, state: TokenState::ACTIVE);
         $originalTransaction->token = $token;
 
         $address = new Address();

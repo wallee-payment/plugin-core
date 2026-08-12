@@ -11,6 +11,7 @@ use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
+use Wallee\PluginCore\Refund\Exception\RefundException;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionService;
 
@@ -155,6 +156,22 @@ class RefundService
      * @param int $transactionId The parent transaction ID.
      * @return RefundCollection List of existing refunds.
      */
+    /**
+     * Finds a single refund by its own ID.
+     *
+     * Chiefly used from a webhook handler: a refund notification carries a refund
+     * ID but no transaction ID, so this is what resolves the rest of the record.
+     *
+     * @param int $spaceId The space ID.
+     * @param int $refundId The refund ID.
+     * @return Refund The refund.
+     * @throws RefundException If the refund cannot be read.
+     */
+    public function findById(int $spaceId, int $refundId): Refund
+    {
+        return $this->gateway->findById($spaceId, $refundId);
+    }
+
     public function getRefunds(int $spaceId, int $transactionId): RefundCollection
     {
         return $this->gateway->findByTransaction($spaceId, $transactionId);

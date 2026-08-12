@@ -2,6 +2,8 @@
 
 namespace Wallee\PluginCore\Examples\Common;
 
+// 📖 Concept documentation: See docs/examples/Common/README.md
+
 /**
  * Helper to determine the Transaction ID from CLI arguments or session files.
  */

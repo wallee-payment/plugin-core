@@ -10,6 +10,7 @@ use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
+use Wallee\PluginCore\Refund\Exception\RefundException;
 use Wallee\PluginCore\Refund\LineItem\RefundLineItem;
 use Wallee\PluginCore\Refund\LineItem\RefundLineItemCollection;
 use Wallee\PluginCore\Refund\Refund;
@@ -416,4 +417,29 @@ class RefundServiceTest extends TestCase
 
         $this->service->createRefund($spaceId, $context);
     }
+
+    public function testFindByIdDelegatesToGatewayAndReturnsRefund(): void
+    {
+        $refund = new Refund();
+        $refund->id = 555;
+        $refund->transactionId = 123;
+
+        $this->gateway->expects($this->once())
+            ->method('findById')
+            ->with(1, 555)
+            ->willReturn($refund);
+
+        $this->assertSame($refund, $this->service->findById(1, 555));
+    }
+
+    public function testFindByIdPropagatesGatewayException(): void
+    {
+        $this->gateway->method('findById')
+            ->willThrowException(new RefundException('boom'));
+
+        $this->expectException(RefundException::class);
+
+        $this->service->findById(1, 555);
+    }
+
 }
