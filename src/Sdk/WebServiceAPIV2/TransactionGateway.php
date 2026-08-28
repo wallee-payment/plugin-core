@@ -19,6 +19,7 @@ use Wallee\PluginCore\PaymentMethod\PaymentMethodCollection;
 use Wallee\PluginCore\PaymentMethod\State as PaymentMethodState;
 use Wallee\PluginCore\Sdk\PaymentMethodMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
+use Wallee\PluginCore\Sdk\SearchPaginationTrait;
 use Wallee\PluginCore\Sdk\TransactionMapperTrait;
 use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
 use Wallee\PluginCore\Settings\Settings;
@@ -56,6 +57,7 @@ class TransactionGateway implements TransactionGatewayInterface
     use DomainLoggerTrait;
     use PaymentMethodMapperTrait;
     use TransactionMapperTrait;
+    use SearchPaginationTrait;
 
     private SdkPaymentMethodConfigurationsService $paymentMethodConfigService;
     private SdkTransactionsService $transactionsService;
@@ -142,9 +144,20 @@ class TransactionGateway implements TransactionGatewayInterface
 
         $sdkTransactionCreate->setCurrency($context->currencyCode);
         $sdkTransactionCreate->setLanguage($context->language);
-        $sdkTransactionCreate->setCustomerEmailAddress($context->personalDetails?->emailAddress);
+        if ($context->personalDetails?->emailAddress !== null) {
+            $sdkTransactionCreate->setCustomerEmailAddress($context->personalDetails->emailAddress);
+        }
         $sdkTransactionCreate->setCustomerId($context->customerId);
         $sdkTransactionCreate->setMerchantReference($context->merchantReference);
+        if ($context->invoiceMerchantReference !== null) {
+            $sdkTransactionCreate->setInvoiceMerchantReference($context->invoiceMerchantReference);
+        }
+        if (!empty($context->metaData)) {
+            $sdkTransactionCreate->setMetaData($context->metaData);
+        }
+        if (!empty($context->allowedPaymentMethodConfigurations)) {
+            $sdkTransactionCreate->setAllowedPaymentMethodConfigurations($context->allowedPaymentMethodConfigurations);
+        }
 
         if ($context->successUrl !== null) {
             $sdkTransactionCreate->setSuccessUrl($context->successUrl->value);
@@ -157,6 +170,14 @@ class TransactionGateway implements TransactionGatewayInterface
 
         if ($context->spaceViewId !== null) {
             $sdkTransactionCreate->setSpaceViewId($context->spaceViewId);
+        }
+
+        if ($context->customersPresence !== null) {
+            $sdkTransactionCreate->setCustomersPresence($context->customersPresence->value);
+        }
+
+        if ($context->deviceSessionIdentifier !== null) {
+            $sdkTransactionCreate->setDeviceSessionIdentifier($context->deviceSessionIdentifier);
         }
 
         if ($context->token) {
@@ -299,8 +320,23 @@ class TransactionGateway implements TransactionGatewayInterface
         $query = "state:ACTIVE";
 
         try {
-            $results = $this->paymentMethodConfigService->getPaymentMethodConfigurationsSearch($spaceId, null, null, null, null, $query);
-            $items = (is_object($results) && method_exists($results, 'getData')) ? $results->getData() : (array)$results;
+            // Paged rather than read in one call: a space with more active
+            // configurations than one page holds would otherwise silently lose the rest.
+            $items = iterator_to_array(
+                $this->paginateSearch(
+                    function (int $offset) use ($spaceId, $query): object {
+                        return $this->paymentMethodConfigService->getPaymentMethodConfigurationsSearch(
+                            $spaceId,
+                            null,
+                            SdkProvider::MAX_PAGE_SIZE,
+                            $offset,
+                            null,
+                            $query,
+                        );
+                    },
+                ),
+            );
+
             $this->logger->debug("Gateway: Fetched payment method configurations.", [
                 'count' => count($items),
                 'spaceId' => $spaceId,
@@ -575,6 +611,15 @@ class TransactionGateway implements TransactionGatewayInterface
         }
         $sdkTransactionPending->setCustomerId($context->customerId);
         $sdkTransactionPending->setMerchantReference($context->merchantReference);
+        if ($context->invoiceMerchantReference !== null) {
+            $sdkTransactionPending->setInvoiceMerchantReference($context->invoiceMerchantReference);
+        }
+        if (!empty($context->metaData)) {
+            $sdkTransactionPending->setMetaData($context->metaData);
+        }
+        if (!empty($context->allowedPaymentMethodConfigurations)) {
+            $sdkTransactionPending->setAllowedPaymentMethodConfigurations($context->allowedPaymentMethodConfigurations);
+        }
         if ($context->successUrl !== null) {
             $sdkTransactionPending->setSuccessUrl($context->successUrl->value);
         }
