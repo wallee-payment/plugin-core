@@ -17,6 +17,8 @@ use Wallee\PluginCore\Token\TokenVersion;
 use Wallee\PluginCore\Token\Version\State as VersionState;
 use Wallee\Sdk\ApiException;
 use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
+use Wallee\Sdk\Model\Label as SdkLabel;
+use Wallee\Sdk\Model\LabelDescriptor as SdkLabelDescriptor;
 use Wallee\Sdk\Model\PaymentConnectorConfiguration as SdkPaymentConnectorConfiguration;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
 use Wallee\Sdk\Model\Token as SdkToken;
@@ -265,6 +267,26 @@ class TokenGatewayTest extends TestCase
             $this->assertStringContainsString((string)self::TOKEN_ID, $e->getMessage());
             $this->assertStringContainsString((string)self::SPACE_ID, $e->getMessage());
         }
+    }
+
+    public function testGetActiveTokenVersionMapsLabels(): void
+    {
+        $sdkTokenVersion = $this->makeSdkTokenVersion();
+        $descriptor = new SdkLabelDescriptor();
+        $descriptor->setId(1001);
+        $sdkLabel = new SdkLabel();
+        $sdkLabel->setDescriptor($descriptor);
+        $sdkLabel->setContentAsString('VISA');
+        $sdkTokenVersion->setLabels([$sdkLabel]);
+
+        $this->tokenVersionService->method('activeVersion')->willReturn($sdkTokenVersion);
+
+        $tokenVersion = $this->gateway->getActiveTokenVersion(self::SPACE_ID, self::TOKEN_ID);
+
+        $this->assertInstanceOf(TokenVersion::class, $tokenVersion);
+        $this->assertCount(1, $tokenVersion->labels);
+        $this->assertSame(1001, $tokenVersion->labels[0]->descriptorId);
+        $this->assertSame('VISA', $tokenVersion->labels[0]->content);
     }
 
     public function testGetActiveTokenVersionMapsTheVersionOntoTheDomainEntity(): void

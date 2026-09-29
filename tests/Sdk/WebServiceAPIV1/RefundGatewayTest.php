@@ -17,6 +17,8 @@ use Wallee\PluginCore\Sdk\WebServiceAPIV1\RefundGateway;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\Sdk\Http\ConnectionException;
 use Wallee\Sdk\Model\FailureReason as SdkFailureReason;
+use Wallee\Sdk\Model\Label as SdkLabel;
+use Wallee\Sdk\Model\LabelDescriptor as SdkLabelDescriptor;
 use Wallee\Sdk\Model\Refund as SdkRefund;
 use Wallee\Sdk\Model\RefundCreate as SdkRefundCreate;
 use Wallee\Sdk\Model\RefundState;
@@ -43,6 +45,30 @@ class RefundGatewayTest extends TestCase
             $this->sdkProvider,
             $this->logger,
         );
+    }
+
+    public function testFindByTransactionMapsLabels(): void
+    {
+        $sdkRefund = new SdkRefund();
+        $sdkRefund->setId(11);
+        $sdkRefund->setAmount(25.0);
+        $sdkRefund->setExternalId('ext-11');
+        $sdkRefund->setState(RefundState::SUCCESSFUL);
+
+        $descriptor = new SdkLabelDescriptor();
+        $descriptor->setId(1001);
+        $sdkLabel = new SdkLabel();
+        $sdkLabel->setDescriptor($descriptor);
+        $sdkLabel->setContentAsString('VISA');
+        $sdkRefund->setLabels([$sdkLabel]);
+
+        $this->refundService->method('search')->willReturn([$sdkRefund]);
+
+        $result = $this->gateway->findByTransaction(1, 2)->first();
+
+        $this->assertCount(1, $result->labels);
+        $this->assertSame(1001, $result->labels[0]->descriptorId);
+        $this->assertSame('VISA', $result->labels[0]->content);
     }
 
     public function testFindByTransactionReturnsArrayOfRefunds(): void

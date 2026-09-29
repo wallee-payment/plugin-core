@@ -10,6 +10,7 @@ use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\FailureReasonMapperTrait;
+use Wallee\PluginCore\Sdk\LabelMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Transaction\Completion\CaptureRequest;
 use Wallee\PluginCore\Transaction\Completion\Exception\CompletionException;
@@ -36,6 +37,7 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
 {
     use DomainLoggerTrait;
     use FailureReasonMapperTrait;
+    use LabelMapperTrait;
 
     public function __construct(
         private readonly SdkProvider $sdkProvider,
@@ -251,6 +253,8 @@ class TransactionCompletionGateway implements TransactionCompletionGatewayInterf
                 return $item;
             }, $sdkCompletion->getLineItems());
         }
+
+        $completion->labels = $this->mapToLabels($sdkCompletion->getLabels());
 
         return $completion;
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Transaction\Completion;
 
+use Wallee\PluginCore\Charge\Attempt\Label;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
@@ -26,6 +27,12 @@ class TransactionCompletion
      * @var int The completion ID.
      */
     public int $id;
+
+    /**
+     * @var list<Label> The labels reported for this completion, in the order the
+     *      API returned them.
+     */
+    public array $labels = [];
 
     /**
      * @var array<LineItem>|null The line items to capture (null for full capture).

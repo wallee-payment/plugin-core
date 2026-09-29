@@ -16,6 +16,7 @@ use Wallee\PluginCore\Refund\RefundGatewayInterface;
 use Wallee\PluginCore\Refund\State as StateEnum;
 use Wallee\PluginCore\Sdk\DateTimeMapperTrait;
 use Wallee\PluginCore\Sdk\FailureReasonMapperTrait;
+use Wallee\PluginCore\Sdk\LabelMapperTrait;
 use Wallee\PluginCore\Sdk\LineItemMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\Sdk\Model\CriteriaOperator as SdkCriteriaOperator;
@@ -34,6 +35,7 @@ class RefundGateway implements RefundGatewayInterface
     use DateTimeMapperTrait;
     use DomainLoggerTrait;
     use FailureReasonMapperTrait;
+    use LabelMapperTrait;
     use LineItemMapperTrait;
 
     private SdkRefundService $sdkRefundService;
@@ -150,6 +152,8 @@ class RefundGateway implements RefundGatewayInterface
         if (!empty($sdkReducedLineItems)) {
             $refund->reducedLineItems = new LineItemCollection(...array_map([$this, 'mapToLineItem'], $sdkReducedLineItems));
         }
+
+        $refund->labels = $this->mapToLabels($sdkRefund->getLabels());
 
         return $refund;
     }
