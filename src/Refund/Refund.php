@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Refund;
 
+use Wallee\PluginCore\Charge\Attempt\Label;
 use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
@@ -44,6 +45,12 @@ class Refund
      * @var int
      */
     public int $id;
+
+    /**
+     * @var list<Label> The labels reported for this refund, in the order the API
+     *      returned them.
+     */
+    public array $labels = [];
 
     /**
      * @var LineItemCollection|null The line items included in the refund,

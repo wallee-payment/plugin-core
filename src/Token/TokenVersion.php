@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Token;
 
+use Wallee\PluginCore\Charge\Attempt\Label;
 use Wallee\PluginCore\SharedKernel\JsonStringableTrait;
 
 /**
@@ -72,6 +73,8 @@ readonly class TokenVersion
      *        the API reported none. This is the ID that matches
      *        {@see \Wallee\PluginCore\PaymentMethod\PaymentMethod::$id},
      *        so it is what a locally synced payment-method record is keyed by.
+     * @param list<Label> $labels The labels reported for this version, in the order
+     *        the API returned them.
      */
     public function __construct(
         public int $id,
@@ -83,6 +86,7 @@ readonly class TokenVersion
         public ?int $paymentMethodId = null,
         public ?int $connectorConfigurationId = null,
         public ?int $paymentMethodConfigurationId = null,
+        public array $labels = [],
     ) {
     }
 

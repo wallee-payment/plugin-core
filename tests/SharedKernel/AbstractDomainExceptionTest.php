@@ -7,7 +7,7 @@ namespace Wallee\PluginCore\Tests\SharedKernel;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
 use Wallee\PluginCore\SharedKernel\AbstractDomainException;
-use Wallee\PluginCore\Webhook\Exception\TransientWebhookException;
+use Wallee\PluginCore\Webhook\Exception\RetryableWebhookException;
 
 class AbstractDomainExceptionTest extends TestCase
 {
@@ -48,9 +48,9 @@ class AbstractDomainExceptionTest extends TestCase
         $this->assertFalse($exception->isRetryable());
     }
 
-    public function testTransientWebhookExceptionIsRetryableByDefault(): void
+    public function testRetryableWebhookExceptionIsRetryableByDefault(): void
     {
-        $exception = new TransientWebhookException('lock contention');
+        $exception = new RetryableWebhookException('lock contention');
 
         $this->assertTrue($exception->isRetryable());
     }

@@ -6,6 +6,7 @@ namespace Wallee\PluginCore\Tests\Sdk\WebServiceAPIV2;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionCompletionGateway;
@@ -14,10 +15,15 @@ use Wallee\PluginCore\Transaction\Completion\TransactionCompletion;
 use Wallee\PluginCore\Transaction\Void\State as VoidState;
 use Wallee\PluginCore\Transaction\Void\TransactionVoid;
 use Wallee\Sdk\Model\FailureReason as SdkFailureReason;
+use Wallee\Sdk\Model\Label as SdkLabel;
+use Wallee\Sdk\Model\LabelDescriptor as SdkLabelDescriptor;
+use Wallee\Sdk\Model\LineItem as SdkLineItem;
+use Wallee\Sdk\Model\LineItemType as SdkLineItemType;
 use Wallee\Sdk\Model\TransactionCompletion as SdkTransactionCompletion;
 use Wallee\Sdk\Model\TransactionCompletionState as SdkTransactionCompletionState;
 use Wallee\Sdk\Model\TransactionVoid as SdkTransactionVoid;
 use Wallee\Sdk\Model\TransactionVoidState as SdkTransactionVoidState;
+use Wallee\Sdk\Service\TransactionCompletionsService as SdkTransactionCompletionsService;
 use Wallee\Sdk\Service\TransactionsService as SdkTransactionsService;
 
 /**
@@ -31,15 +37,18 @@ class TransactionCompletionGatewayTest extends TestCase
     private TransactionCompletionGateway $gateway;
     private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkTransactionsService $transactionsService;
+    private MockObject|SdkTransactionCompletionsService $transactionCompletionsService;
 
     protected function setUp(): void
     {
         $this->sdkProvider = $this->createMock(SdkProvider::class);
         $this->transactionsService = $this->createMock(SdkTransactionsService::class);
+        $this->transactionCompletionsService = $this->createMock(SdkTransactionCompletionsService::class);
 
-        $this->sdkProvider->method('getService')
-            ->with(SdkTransactionsService::class)
-            ->willReturn($this->transactionsService);
+        $this->sdkProvider->method('getService')->willReturnMap([
+            [SdkTransactionsService::class, $this->transactionsService],
+            [SdkTransactionCompletionsService::class, $this->transactionCompletionsService],
+        ]);
 
         $this->gateway = new TransactionCompletionGateway($this->sdkProvider, $this->createMock(LoggerInterface::class));
     }
@@ -98,6 +107,84 @@ class TransactionCompletionGatewayTest extends TestCase
 
         $this->assertNotNull($result->failureReason);
         $this->assertEquals('Insufficient funds', $result->failureReason->localize('en-US'));
+    }
+
+    /**
+     * Verifies that a completion's line items are mapped to domain LineItems, not
+     * handed back as SDK models.
+     */
+    public function testGetMapsLineItemsToDomainLineItems(): void
+    {
+        $sdkItem = new SdkLineItem();
+        $sdkItem->setUniqueId('discount-1');
+        $sdkItem->setSku('SUMMER-SALE');
+        $sdkItem->setName('Summer sale');
+        $sdkItem->setQuantity(1.0);
+        $sdkItem->setAmountIncludingTax(-5.0);
+        $sdkItem->setUnitPriceIncludingTax(-5.0);
+        $sdkItem->setType(SdkLineItemType::DISCOUNT);
+
+        $sdkCompletion = new SdkTransactionCompletion();
+        $sdkCompletion->setId(10);
+        $sdkCompletion->setLinkedTransaction(2);
+        $sdkCompletion->setState(SdkTransactionCompletionState::SUCCESSFUL);
+        $sdkCompletion->setLineItems([$sdkItem]);
+
+        $this->transactionCompletionsService->method('getPaymentTransactionsCompletionsId')->willReturn($sdkCompletion);
+
+        $result = $this->gateway->get(1, 10);
+
+        $this->assertCount(1, $result->lineItems);
+        $this->assertInstanceOf(LineItem::class, $result->lineItems[0]);
+        $this->assertSame('discount-1', $result->lineItems[0]->uniqueId);
+        $this->assertSame(LineItem::TYPE_DISCOUNT, $result->lineItems[0]->type);
+    }
+
+    /**
+     * Verifies that a completion without line items reports null, as documented.
+     */
+    public function testGetLeavesLineItemsNullWhenThePayloadCarriesNone(): void
+    {
+        $sdkCompletion = new SdkTransactionCompletion();
+        $sdkCompletion->setId(10);
+        $sdkCompletion->setLinkedTransaction(2);
+        $sdkCompletion->setState(SdkTransactionCompletionState::SUCCESSFUL);
+
+        $this->transactionCompletionsService->method('getPaymentTransactionsCompletionsId')->willReturn($sdkCompletion);
+
+        $this->assertNull($this->gateway->get(1, 10)->lineItems);
+    }
+
+    /**
+     * Verifies that reading a completion by ID requests and maps its labels.
+     */
+    public function testGetRequestsAndMapsLabels(): void
+    {
+        $spaceId = 1;
+        $completionId = 10;
+
+        $descriptor = new SdkLabelDescriptor();
+        $descriptor->setId(1001);
+        $sdkLabel = new SdkLabel();
+        $sdkLabel->setDescriptor($descriptor);
+        $sdkLabel->setContentAsString('VISA');
+
+        $sdkCompletion = new SdkTransactionCompletion();
+        $sdkCompletion->setId($completionId);
+        $sdkCompletion->setLinkedTransaction(2);
+        $sdkCompletion->setState(SdkTransactionCompletionState::SUCCESSFUL);
+        $sdkCompletion->setLabels([$sdkLabel]);
+
+        $this->transactionCompletionsService->expects($this->once())
+            ->method('getPaymentTransactionsCompletionsId')
+            ->with($completionId, $spaceId, ['labels'])
+            ->willReturn($sdkCompletion);
+
+        $result = $this->gateway->get($spaceId, $completionId);
+
+        $this->assertCount(1, $result->labels);
+        $this->assertSame(1001, $result->labels[0]->descriptorId);
+        $this->assertSame('VISA', $result->labels[0]->content);
     }
 
     /**
