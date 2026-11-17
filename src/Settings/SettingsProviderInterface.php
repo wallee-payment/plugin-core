@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Settings;
 
 use Wallee\PluginCore\LineItem\RoundingStrategy;
-use Wallee\PluginCore\Settings\IntegrationMode;
 
 /**
  * Interface for providing configuration settings needed by plugin-core.

@@ -20,7 +20,7 @@ The customer-facing half: showing available payment methods, creating a transact
 
 ### [3. Post-Payment](3-Post-Payment/README.md)
 
-Settling that authorization — capturing or voiding the funds, refunding all or part of it, and retrieving the invoices, packing slips and credit notes the Wallee Portal generates.
+Settling that authorization — capturing or voiding the funds, refunding all or part of it, retrieving the invoices, packing slips and credit notes the Wallee Portal generates, and reading the comments on a transaction.
 
 **You will finish with** a fully settled transaction and the paperwork to back it up.
 

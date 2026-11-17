@@ -9,8 +9,6 @@ use Wallee\PluginCore\Customer\CompanyDetails;
 use Wallee\PluginCore\Customer\Gender;
 use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\Localization\LocalizedString;
-use Wallee\PluginCore\Token\State as TokenState;
-use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Transaction\State as StateEnum;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionEnvironment;
@@ -19,7 +17,6 @@ use Wallee\Sdk\Model\Address as SdkAddress;
 use Wallee\Sdk\Model\PaymentConnector as SdkPaymentConnector;
 use Wallee\Sdk\Model\PaymentConnectorConfiguration as SdkPaymentConnectorConfiguration;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
-use Wallee\Sdk\Model\Token as SdkToken;
 use Wallee\Sdk\Model\Transaction as SdkTransaction;
 
 /**

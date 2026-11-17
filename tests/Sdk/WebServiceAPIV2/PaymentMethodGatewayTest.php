@@ -10,7 +10,6 @@ use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\Exception\PaymentMethodException;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\State;
-use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\PaymentMethodGateway;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
@@ -162,5 +161,249 @@ class PaymentMethodGatewayTest extends TestCase
 
         $this->assertCount(2, $results);
         $this->assertEquals([11, 12], array_map(static fn (PaymentMethod $method) => $method->id, $results->all()));
+    }
+
+    /**
+     * Builds one configuration as API V2 returns it for a single Accept-Language.
+     *
+     * @param array<string, string> $title
+     * @param array<string, string>|null $description
+     */
+    private function config(int $id, array $title, ?array $description = null, int $sortOrder = 1): SdkPaymentMethodConfiguration
+    {
+        $config = new SdkPaymentMethodConfiguration();
+        $config->setId($id);
+        $config->setLinkedSpaceId(1);
+        $config->setState(SdkCreationEntityState::ACTIVE);
+        $config->setResolvedTitle($title);
+        if ($description !== null) {
+            $config->setResolvedDescription($description);
+        }
+        $config->setSortOrder($sortOrder);
+
+        return $config;
+    }
+
+    /**
+     * Routes getLocalizedService() to one service mock per locale and records each request.
+     *
+     * @param array<string, SdkPaymentMethodConfigurationService> $servicesByLocale
+     * @param list<string> $requestedLocales Filled with each locale asked for, in order.
+     */
+    private function routeLocalizedServices(array $servicesByLocale, array &$requestedLocales): void
+    {
+        $this->sdkProvider->method('getLocalizedService')
+            ->willReturnCallback(
+                static function (string $class, string $locale) use ($servicesByLocale, &$requestedLocales) {
+                    self::assertSame(SdkPaymentMethodConfigurationService::class, $class);
+                    self::assertArrayHasKey($locale, $servicesByLocale, "Unexpected locale $locale requested.");
+                    $requestedLocales[] = $locale;
+
+                    return $servicesByLocale[$locale];
+                },
+            );
+    }
+
+    /**
+     * A service mock answering a search with the given pages, keyed by offset.
+     *
+     * @param array<int, SdkPaymentMethodConfigurationSearchResponse> $pagesByOffset
+     */
+    private function searchService(array $pagesByOffset): SdkPaymentMethodConfigurationService
+    {
+        $service = $this->createMock(SdkPaymentMethodConfigurationService::class);
+        $service->expects($this->exactly(count($pagesByOffset)))
+            ->method('getPaymentMethodConfigurationsSearch')
+            ->willReturnCallback(
+                static function (int $space, $expand, int $limit, int $offset, $order, string $query) use ($pagesByOffset) {
+                    self::assertSame(1, $space);
+                    self::assertSame(100, $limit);
+                    self::assertSame('-state:DELETED', $query);
+                    self::assertArrayHasKey($offset, $pagesByOffset);
+
+                    return $pagesByOffset[$offset];
+                },
+            );
+
+        return $service;
+    }
+
+    public function testFetchBySpaceIdMergesOneSearchPerLocaleIntoMultiLocaleMaps(): void
+    {
+        $requested = [];
+        $this->routeLocalizedServices([
+            'de-DE' => $this->searchService([0 => $this->searchResponse([
+                $this->config(11, ['de-DE' => 'Kredit-/Debitkarte'], ['de-DE' => 'Mit Karte bezahlen'], 3),
+            ])]),
+            'fr-FR' => $this->searchService([0 => $this->searchResponse([
+                $this->config(11, ['fr-FR' => 'Carte de crédit / débit'], ['fr-FR' => 'Payer par carte'], 3),
+            ])]),
+        ], $requested);
+        // Every locale is fetched through its own localized service, never the shared one.
+        $this->service->expects($this->never())->method('getPaymentMethodConfigurationsSearch');
+
+        $results = $this->gateway->fetchBySpaceId(1, null, ['de_DE', 'fr-FR']);
+
+        $this->assertSame(['de-DE', 'fr-FR'], $requested);
+        $this->assertCount(1, $results);
+        $method = $results->first();
+        $this->assertSame(
+            ['de-DE' => 'Kredit-/Debitkarte', 'fr-FR' => 'Carte de crédit / débit'],
+            $method->title->jsonSerialize(),
+        );
+        $this->assertSame('Kredit-/Debitkarte', $method->title->localize('de_DE'));
+        $this->assertSame('Kredit-/Debitkarte', $method->title->localize('de-CH'));
+        $this->assertSame('Carte de crédit / débit', $method->title->localize('fr_FR'));
+        $this->assertSame('Payer par carte', $method->description->localize('fr-FR'));
+        $this->assertSame(3, $method->sortOrder);
+    }
+
+    public function testFetchBySpaceIdNormalizesAndDeduplicatesLocales(): void
+    {
+        $requested = [];
+        $this->routeLocalizedServices([
+            'en-US' => $this->searchService([0 => $this->searchResponse([$this->config(11, ['en-US' => 'Credit / Debit Card'])])]),
+            'de-DE' => $this->searchService([0 => $this->searchResponse([$this->config(11, ['de-DE' => 'Kredit-/Debitkarte'])])]),
+        ], $requested);
+        // en-US is requested explicitly, so no separate headerless call is made for the base fields.
+        $this->service->expects($this->never())->method('getPaymentMethodConfigurationsSearch');
+
+        $results = $this->gateway->fetchBySpaceId(1, null, ['en_US', 'de_DE', 'de-DE', ' en-US ', '']);
+
+        $this->assertSame(['en-US', 'de-DE'], $requested);
+        $this->assertSame(
+            ['en-US' => 'Credit / Debit Card', 'de-DE' => 'Kredit-/Debitkarte'],
+            $results->first()->title->jsonSerialize(),
+        );
+    }
+
+    public function testFetchBySpaceIdWithoutLocalesSendsNoAcceptLanguage(): void
+    {
+        $this->sdkProvider->expects($this->never())->method('getLocalizedService');
+        $this->service->expects($this->once())
+            ->method('getPaymentMethodConfigurationsSearch')
+            ->with(1, null, 100, 0, null, '-state:DELETED')
+            ->willReturn($this->searchResponse([$this->config(11, ['en-US' => 'Credit / Debit Card'])]));
+
+        $results = $this->gateway->fetchBySpaceId(1);
+
+        $this->assertSame(['en-US' => 'Credit / Debit Card'], $results->first()->title->jsonSerialize());
+    }
+
+    public function testFetchBySpaceIdPagesThroughEveryLocale(): void
+    {
+        $requested = [];
+        $this->routeLocalizedServices([
+            'de-DE' => $this->searchService([
+                0 => $this->searchResponse([$this->config(11, ['de-DE' => 'Karte'])], true),
+                1 => $this->searchResponse([$this->config(12, ['de-DE' => 'Rechnung'])]),
+            ]),
+            'it-IT' => $this->searchService([
+                0 => $this->searchResponse([$this->config(11, ['it-IT' => 'Carta'])], true),
+                1 => $this->searchResponse([$this->config(12, ['it-IT' => 'Fattura'])]),
+            ]),
+        ], $requested);
+
+        $results = $this->gateway->fetchBySpaceId(1, null, ['de-DE', 'it-IT']);
+
+        $this->assertSame([11, 12], array_map(static fn (PaymentMethod $method) => $method->id, $results->all()));
+        $this->assertSame(['de-DE' => 'Karte', 'it-IT' => 'Carta'], $results->all()[0]->title->jsonSerialize());
+        $this->assertSame(['de-DE' => 'Rechnung', 'it-IT' => 'Fattura'], $results->all()[1]->title->jsonSerialize());
+    }
+
+    public function testFetchBySpaceIdDoesNotLeakTheLocaleIntoALaterCall(): void
+    {
+        $requested = [];
+        $this->routeLocalizedServices([
+            'de-DE' => $this->searchService([0 => $this->searchResponse([$this->config(11, ['de-DE' => 'Kredit-/Debitkarte'])])]),
+        ], $requested);
+        $this->service->expects($this->once())
+            ->method('getPaymentMethodConfigurationsSearch')
+            ->willReturn($this->searchResponse([$this->config(11, ['en-US' => 'Credit / Debit Card'])]));
+
+        $this->gateway->fetchBySpaceId(1, null, ['de-DE']);
+        $later = $this->gateway->fetchBySpaceId(1);
+
+        $this->assertSame(['de-DE'], $requested);
+        $this->assertSame(['en-US' => 'Credit / Debit Card'], $later->first()->title->jsonSerialize());
+    }
+
+    public function testFetchBySpaceIdKeepsTheOtherTranslationsWhenALocaleLacksAConfiguration(): void
+    {
+        $requested = [];
+        $this->routeLocalizedServices([
+            'de-DE' => $this->searchService([0 => $this->searchResponse([
+                $this->config(11, ['de-DE' => 'Karte']),
+                $this->config(12, ['de-DE' => 'Rechnung']),
+            ])]),
+            'fr-FR' => $this->searchService([0 => $this->searchResponse([
+                $this->config(11, ['fr-FR' => 'Carte']),
+            ])]),
+        ], $requested);
+
+        $results = $this->gateway->fetchBySpaceId(1, null, ['de-DE', 'fr-FR']);
+
+        $this->assertCount(2, $results);
+        $this->assertSame(['de-DE' => 'Rechnung'], $results->all()[1]->title->jsonSerialize());
+    }
+
+    public function testFetchBySpaceIdLogsARequestedLocaleMissingFromTheResponse(): void
+    {
+        $requested = [];
+        $this->routeLocalizedServices([
+            'de-DE' => $this->searchService([0 => $this->searchResponse([$this->config(11, ['de-DE' => 'Karte'])])]),
+            'sv-SE' => $this->searchService([0 => $this->searchResponse([$this->config(11, ['en-US' => 'Card'])])]),
+        ], $requested);
+
+        $logged = [];
+        $this->logger->method('debug')
+            ->willReturnCallback(static function (string $message, array $context) use (&$logged): void {
+                if (str_contains($message, 'missing for a requested locale')) {
+                    $logged[] = $context;
+                }
+            });
+
+        $this->gateway->fetchBySpaceId(1, null, ['de-DE', 'sv-SE']);
+
+        $this->assertCount(1, $logged);
+        $this->assertSame('sv-SE', $logged[0]['locale']);
+        $this->assertSame(['en-US'], $logged[0]['returnedLocales']);
+        $this->assertSame([11], $logged[0]['paymentMethodIds']);
+    }
+
+    public function testFetchByIdMergesOneReadPerLocale(): void
+    {
+        $german = $this->createMock(SdkPaymentMethodConfigurationService::class);
+        $german->expects($this->once())
+            ->method('getPaymentMethodConfigurationsId')
+            ->with(10, 1)
+            ->willReturn($this->config(10, ['de-DE' => 'Kreditkarte'], ['de-DE' => 'Später bezahlen']));
+        $english = $this->createMock(SdkPaymentMethodConfigurationService::class);
+        $english->expects($this->once())
+            ->method('getPaymentMethodConfigurationsId')
+            ->with(10, 1)
+            ->willReturn($this->config(10, ['en-US' => 'Credit Card'], ['en-US' => 'Pay later']));
+        $requested = [];
+        $this->routeLocalizedServices(['de-DE' => $german, 'en-US' => $english], $requested);
+        $this->service->expects($this->never())->method('getPaymentMethodConfigurationsId');
+
+        $method = $this->gateway->fetchById(1, 10, ['de_DE', 'en_US']);
+
+        $this->assertSame(['de-DE', 'en-US'], $requested);
+        $this->assertSame(['de-DE' => 'Kreditkarte', 'en-US' => 'Credit Card'], $method->title->jsonSerialize());
+        $this->assertSame('Pay later', $method->description->localize('en-US'));
+    }
+
+    public function testFetchByIdWrapsAFailureOfALocalizedRead(): void
+    {
+        $failing = $this->createMock(SdkPaymentMethodConfigurationService::class);
+        $failing->method('getPaymentMethodConfigurationsId')->willThrowException(new \Exception('Not found'));
+        $requested = [];
+        $this->routeLocalizedServices(['de-DE' => $failing], $requested);
+
+        $this->expectException(PaymentMethodException::class);
+        $this->expectExceptionMessage('paymentMethodId=10');
+
+        $this->gateway->fetchById(1, 10, ['de-DE']);
     }
 }

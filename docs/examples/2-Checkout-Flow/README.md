@@ -81,6 +81,13 @@ Reads the transaction back and prints the environment (space view, language) and
 php 6_transaction_context.php [transaction_id]
 ```
 
+### Step 5: Show Why a Payment Failed
+Prints the message your failure page should show the customer, in the given locale, or a default when the Wallee Portal provides none. Run it after failing a payment in one of the Step 3 scripts.
+
+```bash
+php 8_show_failure_message.php [transaction_id] [--locale=de-DE]
+```
+
 
 ---
 

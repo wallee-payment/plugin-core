@@ -15,7 +15,7 @@ A **Token** is a secure reference to a customer's saved payment credentials — 
 - **Version\State**: A version's lifecycle — `UNINITIALIZED`, `ACTIVE`, `OBSOLETE`.
 - **TokenizationMode**: Controls how a *transaction* requests tokenization at checkout (see Step 1 below).
 - **TokenService**: Creates tokens, reads their versions, and deletes them.
-- **TokenGatewayInterface**: Abstraction for the underlying API interaction.
+- **TokenGatewayInterface**: Connects `TokenService` to the API. Pass it in when you create the service, then use the service for every call.
 
 Both `Token` and `TokenVersion` are **immutable** (`readonly`): every read returns a fresh instance, and writing to a property raises an `Error`. Store the values you need, or re-read to get the current state — an object you are holding will never change underneath you.
 

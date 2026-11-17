@@ -22,6 +22,7 @@ The tools for programmatically managing webhooks in the Wallee Portal: URL creat
 
 - **[Webhook Management](Webhook-Management.md)** — Creating and synchronizing webhook subscriptions.
 - [Lifecycle demo (CLI)](../examples/4-Background-Tasks/manage_webhooks.php) — installs, updates and removes a subscription.
+- [Synchronization demo (CLI)](../examples/4-Background-Tasks/sync_webhooks.php) — subscribes the space to every listener in a registry.
 
 ### Scheduled & Manual Tasks
 

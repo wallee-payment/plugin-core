@@ -42,7 +42,7 @@ echo "Confirming Checkout for Transaction ID: $transactionId (Mode: Custom UI / 
 
 try {
     $mode = 'iframe';
-    $paymentMethods = $gateway->getAvailablePaymentMethods((int)$spaceId, $transactionId,);
+    $paymentMethods = $service->getAvailablePaymentMethods((int)$spaceId, $transactionId,);
     if ($paymentMethods->isEmpty()) {
         exit("\n[ERROR] No payment methods available for this transaction.\n");
     }

@@ -24,30 +24,25 @@ use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionEnvironment;
 use Wallee\PluginCore\Transaction\TransactionPaymentMethod;
-use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 use Wallee\Sdk\ApiException;
 use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
 use Wallee\Sdk\Model\CustomersPresence as SdkCustomersPresence;
 use Wallee\Sdk\Model\FailureReason as SdkFailureReason;
 use Wallee\Sdk\Model\LineItem as SdkLineItemResponse;
-use Wallee\Sdk\Model\LineItemCreate as SdkLineItemCreate;
 use Wallee\Sdk\Model\LineItemType as SdkLineItemType;
 use Wallee\Sdk\Model\PaymentConnector as SdkPaymentConnector;
 use Wallee\Sdk\Model\PaymentConnectorConfiguration as SdkPaymentConnectorConfiguration;
 use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
 use Wallee\Sdk\Model\PaymentMethodConfigurationListResponse;
-use Wallee\Sdk\Model\PaymentMethodConfigurationSearchResponse as SdkPaymentMethodConfigurationSearchResponse;
 use Wallee\Sdk\Model\Transaction as SdkTransaction;
 use Wallee\Sdk\Model\TransactionCreate as SdkTransactionCreate;
 use Wallee\Sdk\Model\TransactionState as SdkTransactionState;
-use Wallee\Sdk\Service\PaymentMethodConfigurationsService as SdkPaymentMethodConfigurationService;
 use Wallee\Sdk\Service\TransactionsService as SdkTransactionsService;
 
 class TransactionGatewayTest extends TestCase
 {
     private TransactionGateway $gateway;
     private MockObject|LoggerInterface $logger;
-    private MockObject|SdkPaymentMethodConfigurationService $sdkPaymentConfigService;
     private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkTransactionsService $sdkTransactionsService;
     private MockObject|Settings $settings;
@@ -76,13 +71,11 @@ class TransactionGatewayTest extends TestCase
     protected function setUp(): void
     {
         $this->sdkTransactionsService = $this->createMock(SdkTransactionsService::class);
-        $this->sdkPaymentConfigService = $this->createMock(SdkPaymentMethodConfigurationService::class);
 
         $this->sdkProvider = $this->createMock(SdkProvider::class);
         $this->sdkProvider->method('getService')
             ->willReturnMap([
                 [SdkTransactionsService::class, $this->sdkTransactionsService],
-                [SdkPaymentMethodConfigurationService::class, $this->sdkPaymentConfigService],
             ]);
 
         $this->logger = $this->createMock(LoggerInterface::class);
@@ -460,20 +453,6 @@ class TransactionGatewayTest extends TestCase
         $this->gateway->create($context);
     }
 
-    /**
-     * Wraps configurations in the paged response shape the SDK actually returns.
-     *
-     * @param list<SdkPaymentMethodConfiguration> $configs
-     */
-    private function configurationSearchResponse(array $configs, bool $hasMore = false): SdkPaymentMethodConfigurationSearchResponse
-    {
-        $response = new SdkPaymentMethodConfigurationSearchResponse();
-        $response->setData($configs);
-        $response->setHasMore($hasMore);
-
-        return $response;
-    }
-
     public function testFetchAvailablePaymentMethodsUsesSettingsMode(): void
     {
         $spaceId = 123;
@@ -502,74 +481,6 @@ class TransactionGatewayTest extends TestCase
 
         $this->assertCount(1, $results, );
         $this->assertEquals(55, $results->first()->id, );
-    }
-
-    /**
-     * A space can hold more active configurations than one page returns, so the
-     * gateway must page until the API reports no more: a truncated list would
-     * silently hide payment methods that are still active.
-     */
-    public function testFetchPaymentMethodConfigurationsPagesUntilTheApiReportsNoMore(): void
-    {
-        $spaceId = 123;
-        $query = "state:ACTIVE";
-
-        $makeConfig = static function (int $id) use ($spaceId): SdkPaymentMethodConfiguration {
-            $config = new SdkPaymentMethodConfiguration();
-            $config->setId($id);
-            $config->setLinkedSpaceId($spaceId);
-            $config->setState(SdkCreationEntityState::ACTIVE);
-            $config->setResolvedTitle(['en-US' => "Method $id"]);
-            $config->setSortOrder(1);
-
-            return $config;
-        };
-
-        $firstPage = $this->configurationSearchResponse([$makeConfig(11)], true);
-        $secondPage = $this->configurationSearchResponse([$makeConfig(12)], false);
-
-        $this->sdkPaymentConfigService->expects($this->exactly(2))
-            ->method('getPaymentMethodConfigurationsSearch')
-            ->willReturnCallback(
-                function (int $space, $expand, int $limit, int $offset, $order, string $actualQuery) use ($spaceId, $query, $firstPage, $secondPage) {
-                    self::assertSame($spaceId, $space);
-                    self::assertSame(100, $limit);
-                    self::assertSame($query, $actualQuery);
-
-                    // The second page must resume after the record already read.
-                    return $offset === 0 ? $firstPage : $secondPage;
-                },
-            );
-
-        $results = $this->gateway->getPaymentMethodConfigurations($spaceId);
-
-        $this->assertCount(2, $results);
-    }
-
-    public function testFetchPaymentMethodConfigurationsMapsCorrectly(): void
-    {
-        $spaceId = 123;
-        $query = "state:ACTIVE";
-
-        $sdkItem1 = new SdkPaymentMethodConfiguration();
-        $sdkItem1->setId(10);
-        $sdkItem1->setLinkedSpaceId($spaceId);
-        $sdkItem1->setResolvedTitle(['en-US' => 'Credit Card']);
-        $sdkItem1->setResolvedDescription(['en-US' => 'Pay later']);
-        $sdkItem1->setSortOrder(1);
-        $sdkItem1->setResolvedImageUrl('http://img.com/card.png');
-        $sdkItem1->setState(SdkCreationEntityState::ACTIVE);
-
-        // V2 Search with query string: getPaymentMethodConfigurationsSearch($space, $expand, $limit, $offset, $order, $query)
-        $this->sdkPaymentConfigService->expects($this->once())
-            ->method('getPaymentMethodConfigurationsSearch')
-            ->with($spaceId, null, 100, 0, null, $query)
-            ->willReturn($this->configurationSearchResponse([$sdkItem1]));
-
-        $results = $this->gateway->getPaymentMethodConfigurations($spaceId, );
-
-        $this->assertCount(1, $results, );
-        $this->assertEquals(10, $results->first()->id, );
     }
 
     #[DataProvider('integrationModeProvider')]
@@ -1007,4 +918,5 @@ class TransactionGatewayTest extends TestCase
 
         $this->assertSame(456, $this->gateway->get(1, 456)->id);
     }
+
 }

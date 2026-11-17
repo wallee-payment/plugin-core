@@ -7,7 +7,6 @@ namespace Wallee\PluginCore\Sdk\WebServiceAPIV2;
 use Wallee\PluginCore\DeliveryIndication\DeliveryIndication;
 use Wallee\PluginCore\DeliveryIndication\DeliveryIndicationGatewayInterface;
 use Wallee\PluginCore\DeliveryIndication\Exception\DeliveryIndicationException;
-use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
@@ -16,7 +15,6 @@ use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\Sdk\Model\DeliveryIndication as SdkDeliveryIndication;
 use Wallee\Sdk\Model\DeliveryIndicationSearchResponse as SdkDeliveryIndicationSearchResponse;
 use Wallee\Sdk\Model\RestApiErrorResponse as SdkRestApiErrorResponse;
-use Wallee\Sdk\Model\Transaction as SdkTransaction;
 use Wallee\Sdk\Service\DeliveryIndicationsService as SdkDeliveryIndicationsService;
 
 /**

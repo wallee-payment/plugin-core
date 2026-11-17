@@ -35,4 +35,28 @@ class RefundContextTest extends TestCase
             $decoded['lineItems'],
         );
     }
+
+    public function testWithoutLineItemsReturnsAnAmountOnlyCopy(): void
+    {
+        $context = new RefundContext(
+            1001,
+            10.50,
+            'REF-001-REQ',
+            Type::MERCHANT_INITIATED_ONLINE,
+            new RefundLineItemCollection(new RefundLineItem('ITEM-1', 1.0, 10.50)),
+            'external-1',
+        );
+
+        $stripped = $context->withoutLineItems();
+
+        $this->assertNotSame($context, $stripped);
+        $this->assertTrue($stripped->lineItems->isEmpty());
+        $this->assertSame(1001, $stripped->transactionId);
+        $this->assertSame(10.50, $stripped->amount);
+        $this->assertSame('REF-001-REQ', $stripped->merchantReference);
+        $this->assertSame(Type::MERCHANT_INITIATED_ONLINE, $stripped->type);
+        $this->assertSame('external-1', $stripped->externalId);
+        // The original is left untouched.
+        $this->assertCount(1, $context->lineItems);
+    }
 }

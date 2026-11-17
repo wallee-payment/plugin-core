@@ -7,7 +7,6 @@ namespace Wallee\PluginCore\Tests\LineItem;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\LineItem\Exception\LineItemConsistencyException;
 use Wallee\PluginCore\LineItem\LineItem;
-use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\LineItem\RoundingStrategy;
 use Wallee\PluginCore\Log\LoggerInterface;

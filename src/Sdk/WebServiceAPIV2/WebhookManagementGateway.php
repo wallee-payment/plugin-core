@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Sdk\WebServiceAPIV2;
 
-use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
@@ -192,30 +191,6 @@ class WebhookManagementGateway implements WebhookManagementGatewayInterface
         }
     }
 
-    public function getUrl(int $spaceId, int $webhookUrlId): WebhookUrl
-    {
-        $this->logger->debug("Getting Webhook URL.", [
-            'webhookUrlId' => $webhookUrlId,
-            'spaceId' => $spaceId,
-        ]);
-
-        try {
-            $sdkUrl = $this->webhookUrlService->getWebhooksUrlsId($webhookUrlId, $spaceId);
-
-            return $this->mapToWebhookUrl($sdkUrl);
-        } catch (\Throwable $e) {
-            $this->logger->error('Failed to read the webhook URL.', ['spaceId' => $spaceId, 'webhookUrlId' => $webhookUrlId, 'exception' => $e]);
-
-            throw SdkProvider::wrapException(
-                $e,
-                WebhookManagementException::class,
-                'getUrl',
-                ['spaceId' => $spaceId, 'webhookUrlId' => $webhookUrlId],
-                'Failed to read the webhook URL.',
-            );
-        }
-    }
-
     public function getWebhookListeners(int $spaceId, int $urlId): WebhookListenerCollection
     {
         $this->logger->debug("Getting Webhook Listeners for URL.", [
@@ -302,30 +277,6 @@ class WebhookManagementGateway implements WebhookManagementGatewayInterface
                 'listListeners',
                 ['spaceId' => $spaceId],
                 'Failed to list the webhook listeners.',
-            );
-        }
-    }
-
-    public function listUrls(int $spaceId): WebhookUrlCollection
-    {
-        $this->logger->debug("Listing Webhook URLs.", ['spaceId' => $spaceId]);
-
-        try {
-            // V2 Search: using generic query or empty for all.
-            // Use the standard Webhook URL retrieval method.
-            $results = $this->webhookUrlService->getWebhooksUrls($spaceId, null, null, null, 100, null);
-            $data = (is_object($results) && method_exists($results, 'getData')) ? $results->getData() : (array)$results;
-
-            return new WebhookUrlCollection(...array_map([$this, 'mapToWebhookUrl'], $data));
-        } catch (\Throwable $e) {
-            $this->logger->error('Failed to list the webhook URLs.', ['spaceId' => $spaceId, 'exception' => $e]);
-
-            throw SdkProvider::wrapException(
-                $e,
-                WebhookManagementException::class,
-                'listUrls',
-                ['spaceId' => $spaceId],
-                'Failed to list the webhook URLs.',
             );
         }
     }

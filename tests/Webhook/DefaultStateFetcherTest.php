@@ -9,6 +9,9 @@ use Wallee\PluginCore\Http\Request;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Webhook\DefaultStateFetcher;
+use Wallee\PluginCore\Webhook\Exception\CommandException;
+use Wallee\PluginCore\Webhook\Exception\WebhookSignatureValidationException;
+use Wallee\PluginCore\Webhook\WebhookSignatureGatewayInterface;
 use Wallee\Sdk\Service\DeliveryIndicationsService;
 use Wallee\Sdk\Service\ManualTasksService;
 use Wallee\Sdk\Service\RefundsService;
@@ -17,14 +20,13 @@ use Wallee\Sdk\Service\TransactionCompletionsService;
 use Wallee\Sdk\Service\TransactionInvoicesService;
 use Wallee\Sdk\Service\TransactionsService;
 use Wallee\Sdk\Service\TransactionVoidsService;
-use Wallee\Sdk\Service\WebhookEncryptionKeysService;
 
 /**
  * Unit tests for the DefaultStateFetcher class.
  */
 class DefaultStateFetcherTest extends TestCase
 {
-    private WebhookEncryptionKeysService $encryptionServiceMock;
+    private WebhookSignatureGatewayInterface $signatureGatewayMock;
 
     private DefaultStateFetcher $fetcher;
 
@@ -64,11 +66,9 @@ class DefaultStateFetcherTest extends TestCase
     {
         $this->sdkProviderMock = $this->createMock(SdkProvider::class, );
         $this->settingsMock = $this->createMock(Settings::class, );
-        $this->encryptionServiceMock = $this->createMock(WebhookEncryptionKeysService::class, );
+        $this->signatureGatewayMock = $this->createMock(WebhookSignatureGatewayInterface::class, );
 
-        $this->services = [
-            WebhookEncryptionKeysService::class => $this->encryptionServiceMock,
-        ];
+        $this->services = [];
 
         // Route all SDK provider service fetches through the internal services registry.
         $this->sdkProviderMock->method('getService', )
@@ -84,6 +84,7 @@ class DefaultStateFetcherTest extends TestCase
         $this->fetcher = new DefaultStateFetcher(
             $this->sdkProviderMock,
             $this->settingsMock,
+            $this->signatureGatewayMock,
         );
     }
 
@@ -195,9 +196,9 @@ class DefaultStateFetcherTest extends TestCase
             'raw-body-content',
         );
 
-        $this->encryptionServiceMock
+        $this->signatureGatewayMock
             ->expects($this->once(), )
-            ->method('isContentValid', )
+            ->method('validate', )
             ->with('a-valid-signature-header', 'raw-body-content', )
             ->willReturn(true, );
 
@@ -214,7 +215,7 @@ class DefaultStateFetcherTest extends TestCase
     public function testFetchStateThrowsExceptionWhenSignatureIsInvalid(): void
     {
         // --- Assert ---
-        $this->expectException(\Exception::class, );
+        $this->expectException(CommandException::class, );
         $this->expectExceptionMessage('Invalid webhook signature: validation check failed.', );
 
         // --- Arrange ---
@@ -224,9 +225,35 @@ class DefaultStateFetcherTest extends TestCase
             'raw-body-content',
         );
 
-        $this->encryptionServiceMock->method('isContentValid', )->willReturn(false, );
+        $this->signatureGatewayMock->method('validate', )->willReturn(false, );
 
         // --- Act ---
+        $this->fetcher->fetchState($request, 567, );
+    }
+
+    /**
+     * Verifies that a correctly signed payload without a state is rejected.
+     */
+    public function testFetchStateThrowsWhenSignedPayloadHasNoState(): void
+    {
+        $this->signatureGatewayMock->method('validate', )->willReturn(true, );
+        $request = $this->createRequest(['x-signature' => 'a-valid-signature-header',], [], 'raw-body-content', );
+
+        $this->expectException(CommandException::class, );
+        $this->expectExceptionMessage("Webhook payload is signed but missing 'state' field.", );
+        $this->fetcher->fetchState($request, 567, );
+    }
+
+    /**
+     * Verifies that a gateway failure (e.g. the signing key cannot be fetched) reaches the caller.
+     */
+    public function testFetchStatePropagatesGatewayFailure(): void
+    {
+        $failure = new WebhookSignatureValidationException('Webhook signature validation failed.', );
+        $this->signatureGatewayMock->method('validate', )->willThrowException($failure, );
+        $request = $this->createRequest(['x-signature' => 'a-signature-header',], ['state' => 'COMPLETED',], 'raw-body-content', );
+
+        $this->expectExceptionObject($failure, );
         $this->fetcher->fetchState($request, 567, );
     }
 

@@ -17,7 +17,6 @@ use Wallee\Sdk\Service\TransactionCompletionsService;
 use Wallee\Sdk\Service\TransactionInvoicesService;
 use Wallee\Sdk\Service\TransactionsService;
 use Wallee\Sdk\Service\TransactionVoidsService;
-use Wallee\Sdk\Service\WebhookEncryptionKeysService;
 
 /**
  * Default implementation for fetching the remote state of an entity.
@@ -29,10 +28,12 @@ class DefaultStateFetcher implements StateFetcherInterface
      *
      * @param SdkProvider $sdkProvider The SDK provider.
      * @param Settings $settings The plugin settings.
+     * @param WebhookSignatureGatewayInterface $signatureGateway Validates signed payloads.
      */
     public function __construct(
         private readonly SdkProvider $sdkProvider,
         private readonly Settings $settings,
+        private readonly WebhookSignatureGatewayInterface $signatureGateway,
     ) {
     }
 
@@ -50,12 +51,8 @@ class DefaultStateFetcher implements StateFetcherInterface
         $signatureHeader = $request->getHeader('x-signature', );
 
         if ($signatureHeader) {
-            // Retrieve encryption service to validate the payload integrity.
-            /** @var WebhookEncryptionKeysService $encryptionService */
-            $encryptionService = $this->sdkProvider->getService(WebhookEncryptionKeysService::class, );
-
             // Validating the signed body allows resolving the state without external API calls.
-            if ($encryptionService->isContentValid($signatureHeader, $request->getRawBody(), )) {
+            if ($this->signatureGateway->validate($signatureHeader, $request->getRawBody())) {
                 $body = $request->body;
                 if (empty($body['state'])) {
                     throw new CommandException(

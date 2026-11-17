@@ -10,9 +10,6 @@ use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Token\Exception\MissingTokenException;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
-use Wallee\PluginCore\Transaction\Transaction;
-use Wallee\PluginCore\Transaction\TransactionContext;
-use Wallee\PluginCore\Transaction\TransactionService;
 
 /**
  * Service for handling recurring transactions.

@@ -12,13 +12,10 @@ use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodCollection;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodSorting;
-use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\SharedKernel\RetryableOperation;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\Exception\TransactionNotConfirmableException;
 use Wallee\PluginCore\Transaction\Exception\TransactionTotalNegativeException;
-use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
-use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 
 /**
  * Manages the lifecycle of payment transactions.
@@ -265,22 +262,6 @@ class TransactionService
     }
 
     /**
-     * Retrieves a list of the most recent transactions.
-     *
-     * @param int $spaceId The identity space.
-     * @param int $limit Maximum number of results to return.
-     * @return TransactionCollection List of recent transactions.
-     */
-    public function getLatestTransactions(int $spaceId, int $limit = 10): TransactionCollection
-    {
-        $criteria = new TransactionSearchCriteria();
-        $criteria->limit = $limit;
-        $criteria->sortField = 'id';
-        $criteria->sortOrder = 'DESC';
-        return $this->searchTransactions($spaceId, $criteria);
-    }
-
-    /**
      * Retrieves the URL where the customer should be redirected to complete payment.
      *
      * @param int $spaceId The identity space.
@@ -310,6 +291,26 @@ class TransactionService
             'spaceId' => $spaceId,
         ]);
         return $this->gateway->get($spaceId, $transactionId);
+    }
+
+    /**
+     * Looks up a transaction that may not exist.
+     *
+     * Use this instead of getTransaction() when a missing transaction is an expected
+     * outcome (an ID taken from a session, a URL or a stale order) rather than an error.
+     *
+     * @param int $spaceId The identity space.
+     * @param int $transactionId The unique transaction identifier.
+     * @return Transaction|null The transaction, or null when it does not exist.
+     * @throws TransactionException If the transaction cannot be read for any other reason.
+     */
+    public function findTransaction(int $spaceId, int $transactionId): ?Transaction
+    {
+        $this->logger->debug("Finding transaction.", [
+            'transactionId' => $transactionId,
+            'spaceId' => $spaceId,
+        ]);
+        return $this->gateway->find($spaceId, $transactionId);
     }
 
     /**

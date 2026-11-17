@@ -6,7 +6,6 @@ namespace Wallee\PluginCore\LineItem;
 
 use Wallee\PluginCore\GlobalData\Currency\CurrencyRoundingService;
 use Wallee\PluginCore\LineItem\Exception\LineItemConsistencyException;
-use Wallee\PluginCore\LineItem\LineItemCollection;
 use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;

@@ -55,7 +55,7 @@ try {
     $mode = 'iframe';
 
     // Fetch Available Methods
-    $paymentMethods = $gateway->getAvailablePaymentMethods((int)$spaceId, $transactionId);
+    $paymentMethods = $service->getAvailablePaymentMethods((int)$spaceId, $transactionId);
     if ($paymentMethods->isEmpty()) {
         exit("\n[ERROR] No payment methods available for this transaction.\n");
     }

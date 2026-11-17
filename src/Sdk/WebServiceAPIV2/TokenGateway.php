@@ -16,7 +16,6 @@ use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Token\TokenGatewayInterface;
 use Wallee\PluginCore\Token\TokenVersion;
 use Wallee\Sdk\ApiException;
-use Wallee\Sdk\Model\PaymentConnector as SdkPaymentConnector;
 use Wallee\Sdk\Model\RestApiErrorResponse as SdkRestApiErrorResponse;
 use Wallee\Sdk\Model\Token as SdkToken;
 use Wallee\Sdk\Model\TokenVersion as SdkTokenVersion;

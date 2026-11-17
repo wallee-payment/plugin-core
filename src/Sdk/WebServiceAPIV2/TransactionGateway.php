@@ -10,45 +10,31 @@ use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\LineItem\LineItem;
 use Wallee\PluginCore\LineItem\LineItemAttribute;
 use Wallee\PluginCore\LineItem\LineItemAttributeCollection;
-use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
-use Wallee\PluginCore\PaymentMethod\PaymentMethod;
 use Wallee\PluginCore\PaymentMethod\PaymentMethodCollection;
-use Wallee\PluginCore\PaymentMethod\State as PaymentMethodState;
 use Wallee\PluginCore\Sdk\PaymentMethodMapperTrait;
 use Wallee\PluginCore\Sdk\SdkProvider;
-use Wallee\PluginCore\Sdk\SearchPaginationTrait;
 use Wallee\PluginCore\Sdk\TransactionMapperTrait;
 use Wallee\PluginCore\Settings\IntegrationMode as IntegrationModeEnum;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\PluginCore\Tax\Tax;
-use Wallee\PluginCore\Token\State as TokenState;
-use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
 use Wallee\PluginCore\Transaction\PaymentUrl;
-use Wallee\PluginCore\Transaction\State as StateEnum;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionCollection;
 use Wallee\PluginCore\Transaction\TransactionContext;
 use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 use Wallee\Sdk\ApiException;
-use Wallee\Sdk\Model\Address as SdkAddress;
 use Wallee\Sdk\Model\AddressCreate as SdkAddressCreate;
-use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
-use Wallee\Sdk\Model\LineItem as SdkLineItem;
 use Wallee\Sdk\Model\LineItemAttributeCreate as SdkLineItemAttributeCreate;
 use Wallee\Sdk\Model\LineItemCreate as SdkLineItemCreate;
 use Wallee\Sdk\Model\LineItemType as SdkLineItemType;
-use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkPaymentMethodConfiguration;
 use Wallee\Sdk\Model\TaxCreate as SdkTaxCreate;
-use Wallee\Sdk\Model\Token as SdkToken;
-use Wallee\Sdk\Model\Transaction as SdkTransaction;
 use Wallee\Sdk\Model\TransactionCreate as SdkTransactionCreate;
 use Wallee\Sdk\Model\TransactionPending as SdkTransactionPending;
-use Wallee\Sdk\Service\PaymentMethodConfigurationsService as SdkPaymentMethodConfigurationsService;
 use Wallee\Sdk\Service\TransactionsService as SdkTransactionsService;
 
 #[LogContext(domain: 'transaction', subdomain: 'checkout')]
@@ -57,13 +43,11 @@ class TransactionGateway implements TransactionGatewayInterface
     use DomainLoggerTrait;
     use PaymentMethodMapperTrait;
     use TransactionMapperTrait;
-    use SearchPaginationTrait;
     /**
      * Related entities this API omits from a transaction unless they are expanded.
      */
     private const EXPAND = ['billingAddress', 'shippingAddress', 'lineItems', 'token'];
 
-    private SdkPaymentMethodConfigurationsService $paymentMethodConfigService;
     private SdkTransactionsService $transactionsService;
 
     public function __construct(
@@ -73,7 +57,6 @@ class TransactionGateway implements TransactionGatewayInterface
     ) {
         $this->initializeLogger($logger);
         $this->transactionsService = $this->sdkProvider->getService(SdkTransactionsService::class);
-        $this->paymentMethodConfigService = $this->sdkProvider->getService(SdkPaymentMethodConfigurationsService::class);
     }
 
     /**
@@ -314,50 +297,6 @@ class TransactionGateway implements TransactionGatewayInterface
                 'getPaymentTransactionsIdPaymentMethodConfigurations',
                 ['spaceId' => $spaceId, 'transactionId' => $transactionId],
                 'Unable to fetch the available payment methods.',
-            );
-        }
-    }
-
-    public function getPaymentMethodConfigurations(int $spaceId): PaymentMethodCollection
-    {
-        // Search for active payment method configurations using the V2 query syntax.
-        $query = "state:ACTIVE";
-
-        try {
-            // Paged rather than read in one call: a space with more active
-            // configurations than one page holds would otherwise silently lose the rest.
-            $items = iterator_to_array(
-                $this->paginateSearch(
-                    function (int $offset) use ($spaceId, $query): object {
-                        return $this->paymentMethodConfigService->getPaymentMethodConfigurationsSearch(
-                            $spaceId,
-                            null,
-                            SdkProvider::MAX_PAGE_SIZE,
-                            $offset,
-                            null,
-                            $query,
-                        );
-                    },
-                ),
-            );
-
-            $this->logger->debug("Gateway: Fetched payment method configurations.", [
-                'count' => count($items),
-                'spaceId' => $spaceId,
-            ]);
-
-            return new PaymentMethodCollection(...array_map([$this, 'mapToPaymentMethod'], $items));
-        } catch (\Throwable $e) {
-            $this->logger->error("Gateway: Failed to fetch payment method configurations.", [
-                'spaceId' => $spaceId,
-                'exception' => $e,
-            ]);
-            throw SdkProvider::wrapException(
-                $e,
-                TransactionException::class,
-                'getPaymentMethodConfigurationsSearch',
-                ['spaceId' => $spaceId],
-                'Failed to fetch payment method configurations.',
             );
         }
     }

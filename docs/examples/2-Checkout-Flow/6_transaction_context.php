@@ -21,8 +21,10 @@ namespace MyPlugin\ExampleCheckoutImplementation;
  */
 
 use Wallee\PluginCore\Examples\Common\TransactionIdLoader;
+use Wallee\PluginCore\LineItem\LineItemConsistencyService;
 use Wallee\PluginCore\Sdk\WebServiceAPIV2\TransactionGateway;
 use Wallee\PluginCore\Transaction\Exception\TransactionException;
+use Wallee\PluginCore\Transaction\TransactionService;
 
 // 📖 Concept documentation: See docs/2-Checkout-Flow/Checkout.md
 
@@ -45,10 +47,15 @@ try {
 
 echo "Reading context of Transaction ID: $transactionId\n";
 
-$gateway = new TransactionGateway($sdkProvider, $logger, $settings);
+$transactionService = new TransactionService(
+    new TransactionGateway($sdkProvider, $logger, $settings),
+    new LineItemConsistencyService($settings, $logger),
+    $logger,
+);
 
 try {
-    $transaction = $gateway->find($spaceId, $transactionId);
+    // findTransaction() returns null for an unknown ID instead of throwing.
+    $transaction = $transactionService->findTransaction($spaceId, $transactionId);
 } catch (TransactionException $e) {
     echo "\n[FAILED] " . $e->getMessage() . "\n";
     echo "Localized: " . $e->getLocalizedMessage()->localize('en-US') . "\n";

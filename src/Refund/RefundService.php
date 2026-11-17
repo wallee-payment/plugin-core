@@ -13,6 +13,7 @@ use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
 use Wallee\PluginCore\Refund\Exception\InvalidRefundException;
 use Wallee\PluginCore\Refund\Exception\RefundException;
+use Wallee\PluginCore\Refund\Exception\RefundMathMismatchException;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionService;
 
@@ -54,6 +55,10 @@ class RefundService
      * introduces rounding errors that cause the gateway API to reject the
      * refund.
      *
+     * If the line item reductions do not add up to `$context->amount` (for example
+     * an indivisible remainder such as 1.00 over three units), the line items are
+     * dropped and the refund is sent as an amount-only refund.
+     *
      * @param int $spaceId The identity space.
      * @param RefundContext $context The refund details (amount, line items, external ref).
      * @return Refund The persisted refund object.
@@ -71,11 +76,22 @@ class RefundService
         $originalTransaction = $this->transactionService->getTransaction($spaceId, $context->transactionId);
 
         // Business Rule Validation
-        $this->validateRefund($originalTransaction, $context);
+        try {
+            $this->validateRefund($originalTransaction, $context);
+        } catch (RefundMathMismatchException $e) {
+            $this->logger->warning("Math mismatch detected, falling back to Amount-Only refund.", [
+                'transactionId' => $context->transactionId,
+                'amount' => $context->amount,
+                'reason' => $e->getMessage(),
+            ]);
+
+            $context = $context->withoutLineItems();
+        }
 
         // Gateway Execution
         return $this->gateway->refund($spaceId, $context);
     }
+
 
     /**
      * Returns the line items that are still refundable for a transaction.
@@ -211,6 +227,7 @@ class RefundService
      * @param Transaction $originalTransaction The source transaction.
      * @param RefundContext $context The request details.
      * @throws InvalidRefundException If any business rule is violated.
+     * @throws RefundMathMismatchException If the line item reductions do not add up to the refund amount.
      */
     private function validateRefund(Transaction $originalTransaction, RefundContext $context): void
     {
@@ -240,6 +257,7 @@ class RefundService
         // If specific line items are provided, their individual reductions must sum up to the total refund amount.
         if (!$context->lineItems->isEmpty()) {
             $calculatedTotalReduction = 0.0;
+            $remainingUnits = 0.0;
 
             foreach ($context->lineItems as $refundItem) {
                 $uId = $refundItem->uniqueId;
@@ -295,6 +313,7 @@ class RefundService
                 }
 
                 $calculatedTotalReduction += $itemTotalReduction;
+                $remainingUnits += max(0.0, $originalItem->quantity - $quantity);
             }
 
             // Cross-Validation of Totals
@@ -302,11 +321,36 @@ class RefundService
             if (!CurrencyRoundingService::areAmountsEqual($calculatedTotalReduction, $context->amount, $currencyCode)) {
                 $providedAmount = CurrencyRoundingService::format($context->amount, $currencyCode);
                 $calculatedAmount = CurrencyRoundingService::format($calculatedTotalReduction, $currencyCode);
-                throw new InvalidRefundException(
-                    "Consistency Error: Total provided refund amount ($providedAmount) does not match the sum of line item reductions ($calculatedAmount) for transaction {$originalTransaction->id}.",
-                    new LocalizedString("Total refund amount does not match the sum of line item reductions."),
-                );
+                $message = "Consistency Error: Total provided refund amount ($providedAmount) does not match the sum of line item reductions ($calculatedAmount) for transaction {$originalTransaction->id}.";
+                $localizedMessage = new LocalizedString("Total refund amount does not match the sum of line item reductions.");
+
+                // Only a rounding remainder may be settled as an amount-only refund; a larger gap is a bad request.
+                if (self::isRoundingRemainder($context->amount, $calculatedTotalReduction, $remainingUnits, $currencyCode)) {
+                    throw new RefundMathMismatchException($message, $localizedMessage);
+                }
+
+                throw new InvalidRefundException($message, $localizedMessage);
             }
         }
+    }
+
+    /**
+     * Whether a gap between the requested amount and the summed reductions is small enough
+     * to be a rounding remainder rather than a wrong request.
+     *
+     * Per-unit reductions are whole amounts of the currency's smallest unit, so spreading
+     * an amount over the remaining units can leave a gap of up to one smallest unit per
+     * unit. A larger gap means the line items and the amount disagree for another reason.
+     */
+    private static function isRoundingRemainder(
+        float $amount,
+        float $calculatedReduction,
+        float $remainingUnits,
+        string $currencyCode,
+    ): bool {
+        $scale = 10 ** CurrencyRoundingService::decimalsFor($currencyCode);
+        $gap = (int)round(abs($amount - $calculatedReduction) * $scale);
+
+        return $gap <= (int)ceil($remainingUnits);
     }
 }

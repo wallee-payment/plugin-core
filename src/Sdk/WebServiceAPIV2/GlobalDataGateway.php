@@ -11,7 +11,6 @@ use Wallee\PluginCore\GlobalData\LabelDescriptor\LabelDescriptorCollection;
 use Wallee\PluginCore\GlobalData\LabelDescriptorGroup\LabelDescriptorGroupCollection;
 use Wallee\PluginCore\GlobalData\Language\LanguageCollection;
 use Wallee\PluginCore\GlobalData\PaymentConnector\PaymentConnectorCollection;
-use Wallee\PluginCore\Localization\LocalizedString;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Wallee\PluginCore\Webhook;
 
 use Wallee\PluginCore\Webhook\Enum\WebhookListener;
-use Wallee\PluginCore\State\ValidatesStateTransitions;
 
 /**
  * Provides default implementations for the lifecycle hooks.

@@ -12,8 +12,8 @@ The original transaction **must** be created with `tokenizationMode = FORCE_CREA
 **2. Process via Token**
 The recurring payment process creates a new transaction linked to the existing token, then charges it using `processWithToken`. This leverages the stored payment credentials from the token.
 
-**3. The Recurring Gateway**
-The logic is encapsulated in the `RecurringTransactionGatewayInterface`. This interface exposes a specific method for processing recurring charges: `processRecurringPayment`.
+**3. The Recurring Service**
+`RecurringTransactionService::processRecurringPayment()` runs the whole recurring charge in one call: you pass the space ID and the original transaction ID, and get the new transaction back (see Step 2 below).
 
 > [!IMPORTANT]
 > Recurring payments will **fail** if the original transaction was not created with tokenization enabled. The error message will indicate that no token exists.

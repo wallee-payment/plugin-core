@@ -99,9 +99,12 @@ class RefundServiceTest extends TestCase
             ),
         );
 
+        $this->gateway->expects($this->never())->method('refund');
+
         $this->expectException(InvalidRefundException::class);
         $this->expectExceptionMessage("Consistency Error: Total provided refund amount (60.00) does not match the sum of line item reductions (50.00) for transaction 123.");
 
+        // The reductions sum to 50.00 but the total claims 60.00: far more than a rounding remainder.
         $this->service->createRefund($spaceId, $context);
     }
 
@@ -601,5 +604,196 @@ class RefundServiceTest extends TestCase
                 new RefundLineItem('item-a', 0, 5.000),
             ),
         ));
+    }
+
+    public function testLineItemsAreKeptWhenReductionsMatchAmount(): void
+    {
+        $this->transactionService->method('getTransaction')
+            ->willReturn($this->threeUnitTransaction(123));
+
+        // 3 units x 0.33 = 0.99, exactly the requested amount.
+        $context = new RefundContext(
+            transactionId: 123,
+            amount: 0.99,
+            merchantReference: 'ref-exact',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+            lineItems: new RefundLineItemCollection(
+                new RefundLineItem('item-a', 0, 0.33),
+            ),
+        );
+
+        $this->logger->expects($this->never())->method('warning');
+        $this->gateway->expects($this->once())
+            ->method('refund')
+            ->with(1, $this->identicalTo($context))
+            ->willReturn(new Refund());
+
+        $this->service->createRefund(1, $context);
+    }
+
+    public function testFallsBackToAmountOnlyWhenReductionsDoNotMatchAmount(): void
+    {
+        $this->transactionService->method('getTransaction')
+            ->willReturn($this->threeUnitTransaction(123));
+
+        // 1.00 over 3 units cannot be split into whole-cent reductions: 3 x 0.33 = 0.99.
+        $context = new RefundContext(
+            transactionId: 123,
+            amount: 1.00,
+            merchantReference: 'ref-remainder',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+            lineItems: new RefundLineItemCollection(
+                new RefundLineItem('item-a', 0, 0.33),
+            ),
+            externalId: 'external-1',
+        );
+
+        $this->logger->expects($this->once())
+            ->method('warning')
+            ->with($this->stringContains('falling back to Amount-Only refund'));
+
+        $expectedRefund = new Refund();
+        $expectedRefund->id = 888;
+
+        $this->gateway->expects($this->once())
+            ->method('refund')
+            ->with(1, $this->callback(
+                static fn (RefundContext $sent): bool => $sent->lineItems->isEmpty()
+                    && $sent->transactionId === 123
+                    && $sent->amount === 1.00
+                    && $sent->merchantReference === 'ref-remainder'
+                    && $sent->type === TypeEnum::MERCHANT_INITIATED_ONLINE
+                    && $sent->externalId === 'external-1',
+            ))
+            ->willReturn($expectedRefund);
+
+        $this->assertSame($expectedRefund, $this->service->createRefund(1, $context));
+    }
+
+    /**
+     * Each case builds one line item of $quantity units at $unitPrice and refunds it with a single
+     * reduction. The reductions sum to ($returnedQuantity * $unitPrice) + (remaining * $unitPriceReduction),
+     * and $amount is what the caller asks for. The tolerance is one smallest currency unit per remaining unit.
+     */
+    #[DataProvider('roundingToleranceProvider')]
+    public function testRoundingTolerance(
+        string $currency,
+        int $quantity,
+        float $unitPrice,
+        float $returnedQuantity,
+        float $unitPriceReduction,
+        float $amount,
+        string $expected,
+    ): void {
+        $this->transactionService->method('getTransaction')
+            ->willReturn($this->transactionWithItem($quantity, $unitPrice, $currency));
+
+        $context = new RefundContext(
+            transactionId: 123,
+            amount: $amount,
+            merchantReference: 'ref-tolerance',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+            lineItems: new RefundLineItemCollection(
+                new RefundLineItem('item-a', $returnedQuantity, $unitPriceReduction),
+            ),
+        );
+
+        if ($expected === 'rejected') {
+            $this->gateway->expects($this->never())->method('refund');
+            $this->expectException(InvalidRefundException::class);
+            $this->expectExceptionMessage('Consistency Error');
+
+            $this->service->createRefund(1, $context);
+
+            return;
+        }
+
+        $this->gateway->expects($this->once())
+            ->method('refund')
+            ->with(1, $this->callback(
+                static fn (RefundContext $sent): bool => $expected === 'kept'
+                    ? $sent === $context
+                    : $sent->lineItems->isEmpty() && $sent->amount === $amount,
+            ))
+            ->willReturn(new Refund());
+
+        $this->service->createRefund(1, $context);
+    }
+
+    /**
+     * @return array<string, array{string, int, float, float, float, float, string}>
+     */
+    public static function roundingToleranceProvider(): array
+    {
+        // currency, quantity, unit price, returned quantity, unit price reduction, amount, expected
+        return [
+            'exact match keeps the line items' => ['EUR', 3, 1.00, 0, 0.33, 0.99, 'kept'],
+            'one cent over 3 units' => ['EUR', 3, 1.00, 0, 0.33, 1.00, 'fallback'],
+            'reductions above the amount' => ['EUR', 3, 1.00, 0, 0.34, 1.00, 'fallback'],
+            'at the tolerance of 3 units' => ['EUR', 3, 1.00, 0, 0.33, 1.02, 'fallback'],
+            'five cents beyond 3 units' => ['EUR', 3, 1.00, 0, 0.33, 1.04, 'rejected'],
+            'at the tolerance of 7 units' => ['EUR', 7, 1.00, 0, 0.14, 1.05, 'fallback'],
+            'one cent past the tolerance of 7 units' => ['EUR', 7, 1.00, 0, 0.14, 1.06, 'rejected'],
+            'returned unit leaves 3 units, within tolerance' => ['EUR', 4, 2.50, 1, 0.33, 3.52, 'fallback'],
+            'returned unit leaves 3 units, beyond tolerance' => ['EUR', 4, 2.50, 1, 0.33, 3.53, 'rejected'],
+            'all units returned leaves no tolerance' => ['EUR', 2, 5.00, 2, 0.0, 9.99, 'rejected'],
+            'three-decimal currency within tolerance' => ['KWD', 3, 1.000, 0, 0.333, 1.000, 'fallback'],
+            'three-decimal currency beyond tolerance' => ['KWD', 3, 1.000, 0, 0.333, 1.004, 'rejected'],
+            'zero-decimal currency within tolerance' => ['JPY', 3, 100.0, 0, 33.0, 100.0, 'fallback'],
+            'zero-decimal currency beyond tolerance' => ['JPY', 3, 100.0, 0, 33.0, 103.0, 'rejected'],
+        ];
+    }
+
+    private function transactionWithItem(int $quantity, float $unitPrice, string $currency): Transaction
+    {
+        $item = new LineItem();
+        $item->uniqueId = 'item-a';
+        $item->quantity = $quantity;
+        $item->amountIncludingTax = $quantity * $unitPrice;
+        $item->unitPriceIncludingTax = $unitPrice;
+
+        $transaction = new Transaction();
+        $transaction->id = 123;
+        $transaction->currency = $currency;
+        $transaction->authorizedAmount = $quantity * $unitPrice;
+        $transaction->lineItems = [$item];
+
+        return $transaction;
+    }
+
+    public function testFallbackDoesNotBypassTheRemainingAmountCheck(): void
+    {
+        $this->transactionService->method('getTransaction')
+            ->willReturn($this->threeUnitTransaction(123));
+        $this->gateway->expects($this->never())->method('refund');
+
+        $this->expectException(InvalidRefundException::class);
+
+        // Mismatching reductions AND an amount above the 3.00 balance: still rejected.
+        $this->service->createRefund(1, new RefundContext(
+            transactionId: 123,
+            amount: 3.01,
+            merchantReference: 'ref-too-much',
+            type: TypeEnum::MERCHANT_INITIATED_ONLINE,
+            lineItems: new RefundLineItemCollection(
+                new RefundLineItem('item-a', 0, 0.33),
+            ),
+        ));
+    }
+
+    private function threeUnitTransaction(int $transactionId): Transaction
+    {
+        $item = new LineItem();
+        $item->uniqueId = 'item-a';
+        $item->quantity = 3;
+        $item->amountIncludingTax = 3.00;
+        $item->unitPriceIncludingTax = 1.00;
+
+        $transaction = new Transaction();
+        $transaction->id = $transactionId;
+        $transaction->authorizedAmount = 3.00;
+        $transaction->lineItems = [$item];
+
+        return $transaction;
     }
 }

@@ -158,6 +158,39 @@ class SdkProvider
     }
 
     /**
+     * Creates an SDK service whose requests all carry the given `Accept-Language` header.
+     *
+     * API V2 resolves localized fields to the single language named by
+     * `Accept-Language`, and the generated services take no per-request headers:
+     * they read the configuration's default headers whenever they build a request.
+     * The service therefore gets its own copy of the configuration, so the header
+     * never reaches the shared configuration or the services {@see getService()}
+     * hands out. The copy keeps every existing default header, including the SDK's
+     * own `x-meta-sdk-*` headers and the client metadata headers.
+     *
+     * A new instance is built on every call, so it reflects the shared configuration
+     * as it is at that moment.
+     *
+     * @param class-string<T> $serviceClassName
+     * @param string $locale The locale to request, e.g. `de-DE`.
+     * @return T
+     * @template T of object
+     */
+    public function getLocalizedService(string $serviceClassName, string $locale): object
+    {
+        if (!class_exists($serviceClassName) || !method_exists($serviceClassName, '__construct')) {
+            throw new \InvalidArgumentException("Invalid SDK service class provided: {$serviceClassName}");
+        }
+
+        $configuration = clone $this->configuration;
+        $configuration->setDefaultHeaders(
+            array_merge($configuration->getDefaultHeaders(), ['Accept-Language' => $locale]),
+        );
+
+        return new $serviceClassName($configuration);
+    }
+
+    /**
      * Gets the configured Space ID.
      *
      * Resolved on demand rather than in the constructor, so a consumer that only

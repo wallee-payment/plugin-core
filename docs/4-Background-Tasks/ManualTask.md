@@ -5,7 +5,7 @@ Manual tasks are actions a merchant must complete in the Wallee Portal before a 
 ## Key Components
 
 - **ManualTaskService**: The entry point consumers use. Exposes `countByState(int $spaceId, State $state): int`, returning the number of manual tasks in the given space that are in the given state, and `countAll(int $spaceId): int` for the total whatever the state.
-- **ManualTaskGatewayInterface**: The infrastructure port the service delegates to. Consumers do not call it directly.
+- **ManualTaskGatewayInterface**: Connects `ManualTaskService` to the API. Pass it in when you create the service, then use the service for every call.
 - **State**: An enum of the possible manual task states — `OPEN`, `DONE`, `EXPIRED`.
 
 ## Usage

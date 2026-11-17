@@ -7,7 +7,6 @@ namespace Wallee\PluginCore\PaymentMethod;
 use Wallee\PluginCore\Log\DomainLoggerTrait;
 use Wallee\PluginCore\Log\LogContext;
 use Wallee\PluginCore\Log\LoggerInterface;
-use Wallee\PluginCore\PaymentMethod\PaymentMethodCollection;
 
 /**
  * Service for managing payment methods.
@@ -34,17 +33,20 @@ class PaymentMethodService
      *
      * @param int $spaceId The ID of the space.
      * @param int $paymentMethodId The ID of the payment method.
+     * @param list<string> $locales Locales to fetch titles and descriptions for, as `de-DE` or `de_DE`.
      * @return PaymentMethod The payment method.
      * @throws \Exception If the payment method cannot be fetched.
      */
     public function getPaymentMethod(
         int $spaceId,
         int $paymentMethodId,
+        array $locales = [],
     ): PaymentMethod {
         try {
             return $this->gateway->fetchById(
                 $spaceId,
                 $paymentMethodId,
+                $locales,
             );
         } catch (\Exception $e) {
             $this->logger->error(
@@ -64,16 +66,19 @@ class PaymentMethodService
      *
      * @param int $spaceId The ID of the space.
      * @param string|null $state The optional state to filter by.
+     * @param list<string> $locales Locales to fetch titles and descriptions for, as `de-DE` or `de_DE`.
      * @return PaymentMethodCollection The list of available payment methods.
      */
     public function getPaymentMethods(
         int $spaceId,
         ?string $state = null,
+        array $locales = [],
     ): PaymentMethodCollection {
         try {
             $methods = $this->gateway->fetchBySpaceId(
                 $spaceId,
                 $state,
+                $locales,
             );
             $this->logger->info(
                 'Fetched payment methods.',
@@ -105,10 +110,12 @@ class PaymentMethodService
      * operations to the repository. Client plugins never need to implement this logic.
      *
      * @param int $spaceId The ID of the space to synchronize.
+     * @param list<string> $locales Locales to store titles and descriptions for, as `de-DE` or `de_DE`.
      * @throws \Exception If the gateway request fails; repository methods are never called in that case.
      */
     public function synchronize(
         int $spaceId,
+        array $locales = [],
     ): void {
         $this->logger->debug(
             'Starting payment method synchronization.',
@@ -118,6 +125,8 @@ class PaymentMethodService
         // Fetch the current state from the API.
         $externalMethods = $this->gateway->fetchBySpaceId(
             $spaceId,
+            null,
+            $locales,
         );
         $this->logger->debug(
             'Fetched payment methods from the API.',

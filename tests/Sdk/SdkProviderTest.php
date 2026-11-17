@@ -14,6 +14,7 @@ use Wallee\PluginCore\Sdk\ClientMetadataProviderInterface;
 use Wallee\PluginCore\Sdk\SdkProvider;
 use Wallee\PluginCore\Settings\Settings;
 use Wallee\Sdk\Configuration as SdkConfiguration;
+use Wallee\Sdk\Service\PaymentMethodConfigurationsService as SdkPaymentMethodConfigurationsService;
 use Wallee\Sdk\Service\TransactionsService as SdkTransactionsService; // Example service
 
 class SdkProviderTest extends TestCase
@@ -339,4 +340,86 @@ class SdkProviderTest extends TestCase
         $this->assertTrue($wrapped->isRetryable());
     }
 
+    /**
+     * Verifies that a localized service sends Accept-Language on top of every
+     * default header the shared configuration carries, so the SDK and client
+     * identification headers still go out with localized requests.
+     */
+    public function testLocalizedServiceAddsAcceptLanguageToTheExistingDefaultHeaders(): void
+    {
+        $metadataProvider = $this->createMock(ClientMetadataProviderInterface::class);
+        $metadataProvider->method('getClientMetadata')
+            ->willReturn(new ClientMetadata('magento', '2.4.9', '1.2.0'));
+        $sdkProvider = new SdkProvider($this->settingsMock, $metadataProvider);
+        $sharedHeaders = $sdkProvider->getConfiguration()->getDefaultHeaders();
+
+        $service = $sdkProvider->getLocalizedService(SdkPaymentMethodConfigurationsService::class, 'de-DE');
+
+        $this->assertInstanceOf(SdkPaymentMethodConfigurationsService::class, $service);
+        $this->assertSame(
+            $sharedHeaders + ['Accept-Language' => 'de-DE'],
+            self::configOf($service)->getDefaultHeaders(),
+        );
+        $this->assertSame('magento', self::configOf($service)->getDefaultHeaders()['x-meta-shop-system']);
+        $this->assertArrayHasKey('x-meta-sdk-version', self::configOf($service)->getDefaultHeaders());
+    }
+
+    /**
+     * Verifies that the header stays on the localized service: the shared
+     * configuration, the services getService() hands out before and after, and
+     * services for other locales never see it.
+     */
+    public function testLocalizedServiceDoesNotLeakAcceptLanguage(): void
+    {
+        $sharedHeaders = $this->sdkProvider->getConfiguration()->getDefaultHeaders();
+        $before = $this->sdkProvider->getService(SdkPaymentMethodConfigurationsService::class);
+
+        $german = $this->sdkProvider->getLocalizedService(SdkPaymentMethodConfigurationsService::class, 'de-DE');
+        $french = $this->sdkProvider->getLocalizedService(SdkPaymentMethodConfigurationsService::class, 'fr-FR');
+        $after = $this->sdkProvider->getService(SdkPaymentMethodConfigurationsService::class);
+
+        $this->assertSame($sharedHeaders, $this->sdkProvider->getConfiguration()->getDefaultHeaders());
+        $this->assertArrayNotHasKey('Accept-Language', self::configOf($before)->getDefaultHeaders());
+        $this->assertArrayNotHasKey('Accept-Language', self::configOf($after)->getDefaultHeaders());
+        $this->assertSame($this->sdkProvider->getConfiguration(), self::configOf($after));
+        $this->assertNotSame($this->sdkProvider->getConfiguration(), self::configOf($german));
+        $this->assertSame('de-DE', self::configOf($german)->getDefaultHeaders()['Accept-Language']);
+        $this->assertSame('fr-FR', self::configOf($french)->getDefaultHeaders()['Accept-Language']);
+    }
+
+    /**
+     * Verifies that the localized copy keeps the host and credentials of the shared configuration.
+     */
+    public function testLocalizedServiceKeepsHostAndCredentials(): void
+    {
+        $shared = $this->sdkProvider->getConfiguration();
+
+        $config = $this->sdkProvider
+            ->getLocalizedService(SdkPaymentMethodConfigurationsService::class, 'de-DE');
+        $config = self::configOf($config);
+
+        $this->assertSame($shared->getHost(), $config->getHost());
+        $this->assertSame($shared->getUserId(), $config->getUserId());
+        $this->assertSame($shared->getAuthenticationKey(), $config->getAuthenticationKey());
+    }
+
+    public function testGetLocalizedServiceThrowsExceptionForInvalidClass(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->sdkProvider->getLocalizedService(\stdClass::class, 'de-DE');
+    }
+
+    /**
+     * Reads the configuration a service builds its requests from.
+     *
+     * Read by reflection: the SDK's own getConfig() declares a return type that
+     * does not exist, which static analysis rejects.
+     */
+    private static function configOf(object $service): SdkConfiguration
+    {
+        $config = (new \ReflectionProperty($service, 'config'))->getValue($service);
+        self::assertInstanceOf(SdkConfiguration::class, $config);
+
+        return $config;
+    }
 }

@@ -9,7 +9,7 @@
 
 - **TransactionCompletionService**: The entry point — `capture()` (full or partial, via `CaptureRequest`), `void()`, the reads `find()` / `get()`, and `canComplete()` to test whether either is possible.
 - **CaptureRequest**: Describes a partial capture — the `LineItemCollection` being captured now, an `isFinal` flag, and optional `externalId`/`merchantReference` metadata.
-- **TransactionCompletionGatewayInterface**: The underlying API interaction the service delegates to.
+- **TransactionCompletionGatewayInterface**: Connects `TransactionCompletionService` to the API. Pass it in when you create the service, then use the service for every call.
 - **TransactionCompletion**: The result — `id`, the linked transaction ID, `state` (`SUCCESSFUL`, `PENDING`, `FAILED`, ...), and the line items involved.
 
 ## Capturing a Transaction
@@ -67,7 +67,7 @@ Note the asymmetry with refunds: `RefundService::getRefundableLineItems()` nets 
 
 ## Reading a Completion
 
-Completions are processed **asynchronously**: `capture()` may return a completion that is still `PENDING`, with the Wallee Portal reporting the final outcome later via a `TransactionCompletion` webhook — see [Webhook Processor](../4-Background-Tasks/Webhook-Processor.md). The webhook payload carries the completion ID; use the gateway's read methods to verify the actual state rather than trusting the payload:
+Completions are processed **asynchronously**: `capture()` may return a completion that is still `PENDING`, with the Wallee Portal reporting the final outcome later via a `TransactionCompletion` webhook — see [Webhook Processor](../4-Background-Tasks/Webhook-Processor.md). The webhook payload carries the completion ID; read the completion back through the service to verify the actual state rather than trusting the payload:
 
 ```php
 // find(): returns null when the completion does not exist (404).

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Wallee\PluginCore\Tests\Webhook;
 
-use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Wallee\PluginCore\Webhook\Exception\RetryableWebhookException;

@@ -220,28 +220,6 @@ class TransactionServiceTest extends TestCase
         $this->assertSame($methodC, $sorted[2], ); // sortOrder=99, despite alphabetically first
     }
 
-    public function testGetLatestTransactionsDelegatesToGatewayWithDefaults(): void
-    {
-        $spaceId = 123;
-        $limit = 5;
-        $tx = new Transaction();
-        $tx->state = State::PENDING;
-        $expectedResults = new TransactionCollection($tx, );
-
-        $this->gateway->expects($this->once())
-            ->method('search')
-            ->with($this->callback(function (int $argSpaceId) use ($spaceId) {
-                return $argSpaceId === $spaceId;
-            }), $this->callback(function (TransactionSearchCriteria $argCriteria) use ($limit) {
-                return $argCriteria->limit === $limit
-                    && $argCriteria->sortField === 'id'
-                    && $argCriteria->sortOrder === 'DESC';
-            }))
-            ->willReturn($expectedResults);
-
-        $this->assertSame($expectedResults, $this->service->getLatestTransactions($spaceId, $limit, ), );
-    }
-
     public function testGetPaymentUrlDelegatesToGateway(): void
     {
         $spaceId = 1;
@@ -271,6 +249,38 @@ class TransactionServiceTest extends TestCase
             ->willReturn($expectedTx);
 
         $this->assertSame($expectedTx, $this->service->getTransaction($spaceId, $txId));
+    }
+
+    public function testFindTransactionReturnsTransactionWhenItExists(): void
+    {
+        $expectedTx = new Transaction();
+        $expectedTx->state = State::PENDING;
+
+        $this->gateway->expects($this->once())
+            ->method('find')
+            ->with(1, 999)
+            ->willReturn($expectedTx);
+
+        $this->assertSame($expectedTx, $this->service->findTransaction(1, 999));
+    }
+
+    public function testFindTransactionReturnsNullWhenItDoesNotExist(): void
+    {
+        $this->gateway->expects($this->once())
+            ->method('find')
+            ->with(1, 999)
+            ->willReturn(null);
+
+        $this->assertNull($this->service->findTransaction(1, 999));
+    }
+
+    public function testFindTransactionPropagatesGatewayFailure(): void
+    {
+        $failure = $this->retryableFailure();
+        $this->gateway->method('find')->willThrowException($failure);
+
+        $this->expectExceptionObject($failure);
+        $this->service->findTransaction(1, 999);
     }
 
     public function testSearchTransactionsDelegatesToGateway(): void

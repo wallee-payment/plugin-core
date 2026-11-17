@@ -72,18 +72,6 @@ interface WebhookManagementGatewayInterface
     ): void;
 
     /**
-     * Gets a specific webhook URL definition.
-     *
-     * @param int $spaceId
-     * @param int $webhookUrlId
-     * @return WebhookUrl
-     */
-    public function getUrl(
-        int $spaceId,
-        int $webhookUrlId,
-    ): WebhookUrl;
-
-    /**
      * Gets all webhook listeners for a space, filtered by URL.
      *
      * @param int $spaceId
@@ -118,16 +106,6 @@ interface WebhookManagementGatewayInterface
     public function listListeners(
         int $spaceId,
     ): WebhookListenerCollection;
-
-    /**
-     * Lists webhook URL definitions in the Wallee Portal.
-     *
-     * @param int $spaceId
-     * @return WebhookUrlCollection
-     */
-    public function listUrls(
-        int $spaceId,
-    ): WebhookUrlCollection;
 
     /**
      * Updates an existing webhook listener.

@@ -17,18 +17,18 @@ Shop plugins should use the invoice — not the original transaction — to:
 * **`State`**: Strict enum of the invoice lifecycle: `CREATE`, `OPEN`, `OVERDUE`, `CANCELED`, `PAID`, `DERECOGNIZED`, `NOT_APPLICABLE` (with a full transition map).
 * **`InvoiceSearchCriteria`**: Filter/sort/limit DTO for searches.
 * **`InvoiceService`**: The entry point consumers use — `find()`, `get()` and `search()`.
-* **`InvoiceGatewayInterface`**: The read-only infrastructure port the service delegates to. Consumers do not call it directly.
+* **`InvoiceGatewayInterface`**: Connects `InvoiceService` to the API. Pass it in when you create the service, then use the service for every call.
 
 > **Note:** Invoice amounts are expressed in the transaction's currency; the invoice itself carries no currency field.
 
-## Gateway Methods
+## Service Methods
 
-Following the core naming conventions:
+`InvoiceService` follows the core naming conventions:
 
 | Method | Behavior |
 |---|---|
 | `get(int $spaceId, int $invoiceId): Invoice` | Returns the invoice, **throws** `InvoiceException` if it cannot be read. |
-| `find(int $spaceId, int $invoiceId): ?Invoice` | Returns the invoice or **`null`** when it does not exist (404). |
+| `find(int $spaceId, int $invoiceId): ?Invoice` | Returns the invoice or **`null`** when it does not exist. |
 | `search(int $spaceId, InvoiceSearchCriteria $criteria): InvoiceCollection` | Returns a collection matching the criteria. |
 
 All methods throw an `InvoiceException` when the request fails.

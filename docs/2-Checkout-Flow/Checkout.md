@@ -246,11 +246,37 @@ $iconUrl  = $transaction->paymentMethod?->resolvedImageUrl; // null until a meth
 
 See [6_transaction_context.php](../examples/2-Checkout-Flow/6_transaction_context.php) for a runnable script.
 
+`getTransaction()` throws a `TransactionException` when the transaction cannot be read. When the ID comes from somewhere that may be stale — a session, a URL, an old order — use `findTransaction()` instead: it returns `null` when the transaction does not exist and throws only for other failures.
+
+```php
+$transaction = $transactionService->findTransaction($spaceId, $transactionId);
+if ($transaction === null) {
+    // Unknown ID: start a new checkout instead of failing.
+}
+```
+
 `$environment` is always present on a transaction you read back, though its individual properties are null when the API reported no explicit values. `$paymentMethod` is null while the customer has not yet chosen how to pay.
 
 Both hold the values that were *used* for that one transaction rather than pointing at the merchant's live configuration. A merchant can rename a payment method, re-point it at another connector, replace its icon or disable it; a space view's branding and the shop's default language can change too. Copying the few values that were in effect means re-reading last year's order still describes the checkout the customer actually saw, and costs no extra API call.
 
 When you want *current* values instead — a payment method's present title, description or availability — use `paymentMethodId` to look the live configuration up via the [Payment Method](PaymentMethod.md) feature.
+
+## Showing Why a Payment Failed
+
+When a payment fails, the customer is sent back to your shop's failure URL. `getFailureMessage()` gives you the reason to show them: the message the Wallee Portal provides for the customer, in your shop's language, or your own default when there is none.
+
+```php
+$message = $transactionService->getFailureMessage(
+    $spaceId,
+    $transactionId,
+    'de-DE', // the shop's locale; 'de_DE' works too
+    'Your payment could not be completed.', // shown when there is no reason to show
+);
+```
+
+It never throws: when the transaction cannot be read, you get your default back, so a failure page can call it directly.
+
+👉 **See this in action:** [8_show_failure_message.php](../examples/2-Checkout-Flow/8_show_failure_message.php)
 
 ## Holding an Order for Review
 

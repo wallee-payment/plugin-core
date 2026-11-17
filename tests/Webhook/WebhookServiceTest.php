@@ -200,24 +200,6 @@ class WebhookServiceTest extends TestCase
     }
 
     /**
-     * Test listUrls delegates to getWebhookUrls with null state.
-     */
-    public function testListUrls(): void
-    {
-        $spaceId = 123;
-        $expectedUrls = [new WebhookUrl(1, 'Test', 'url', 1, ),];
-        $expectedCollection = new WebhookUrlCollection(...$expectedUrls, );
-
-        $this->managementGateway->expects($this->once())
-            ->method('getWebhookUrls')
-            ->with($spaceId, null, )
-            ->willReturn($expectedCollection);
-
-        $result = $this->service->listUrls($spaceId, );
-        $this->assertSame($expectedCollection, $result, );
-    }
-
-    /**
      * Test successful uninstallation flow.
      */
     public function testUninstallWebhook(): void

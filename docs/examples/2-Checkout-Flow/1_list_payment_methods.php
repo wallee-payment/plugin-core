@@ -6,7 +6,8 @@ namespace MyPlugin\ExamplePaymentMethodImplementation;
  * Payment Method Retrieval Example
  *
  * This script demonstrates how to retrieve available payment methods
- * from the Wallee Portal for a specific space.
+ * from the Wallee Portal for a specific space, with their
+ * titles and descriptions in each of the shop's languages.
  *
  * USAGE:
  * php retrieval.php
@@ -60,18 +61,27 @@ $repository = new SimpleRepository();
 
 $service = new PaymentMethodService($gateway, $repository, $logger);
 
+// The locales your shop displays, as `de_DE` or `de-DE`. Each request returns
+// titles and descriptions in one language only, so without this list every
+// payment method comes back in English. Each locale adds one more search.
+$shopLocales = ['de_DE', 'fr_FR', 'en_US'];
+
 echo "Starting Payment Method Retrieval in Space $spaceId...\n\n";
 
 try {
-    $paymentMethods = $service->getPaymentMethods($spaceId);
+    $paymentMethods = $service->getPaymentMethods($spaceId, null, $shopLocales);
 
     echo "Found " . count($paymentMethods) . " payment methods:\n";
     foreach ($paymentMethods as $paymentMethod) {
         $state = $paymentMethod->state->value;
         echo "- [ID: {$paymentMethod->id}] {$paymentMethod->title->getDefault()} (State: $state)\n";
-        $description = $paymentMethod->description->getDefault();
-        if ($description !== '') {
-            echo "  Description: {$description}\n";
+        foreach ($shopLocales as $locale) {
+            // localize() falls back to another language when this one has no translation.
+            echo "  [$locale] Title: " . ($paymentMethod->title->localize($locale) ?? '') . "\n";
+            $description = $paymentMethod->description->localize($locale);
+            if ($description !== null && $description !== '') {
+                echo "  [$locale] Description: {$description}\n";
+            }
         }
         echo "  Image Path: " . $paymentMethod->getRelativeImagePath() . "\n";
     }
