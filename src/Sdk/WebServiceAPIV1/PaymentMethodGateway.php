@@ -61,13 +61,14 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
     /**
      * @inheritDoc
      */
-    public function fetchById(int $spaceId, int $id): PaymentMethod
+    public function fetchById(int $spaceId, int $id, array $locales = []): PaymentMethod
     {
         try {
             /** @var SdkPaymentMethodConfigurationService $service */
             $service = $this->sdkProvider->getService(SdkPaymentMethodConfigurationService::class);
 
             $config = $service->read($spaceId, $id);
+            self::logMissingLocales($this->logger, $locales, [$config]);
 
             return $this->mapToPaymentMethod($config);
         } catch (\Throwable $e) {
@@ -89,7 +90,7 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
     /**
      * @inheritDoc
      */
-    public function fetchBySpaceId(int $spaceId, ?string $state = null): PaymentMethodCollection
+    public function fetchBySpaceId(int $spaceId, ?string $state = null, array $locales = []): PaymentMethodCollection
     {
         try {
             /** @var SdkPaymentMethodConfigurationService $service */
@@ -106,6 +107,7 @@ class PaymentMethodGateway implements PaymentMethodGatewayInterface
             }
 
             $results = $service->search($spaceId, $query);
+            self::logMissingLocales($this->logger, $locales, $results);
 
             return new PaymentMethodCollection(...array_map([$this, 'mapToPaymentMethod'], $results));
         } catch (\Throwable $e) {

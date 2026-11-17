@@ -33,4 +33,22 @@ class RefundContext
         public ?string $externalId = null,
     ) {
     }
+
+    /**
+     * Returns a copy of this context with every line item removed.
+     *
+     * Turns a line-item refund into an amount-only refund for the same total: the
+     * transaction, amount, merchant reference, type and external ID are kept.
+     */
+    public function withoutLineItems(): self
+    {
+        return new self(
+            transactionId: $this->transactionId,
+            amount: $this->amount,
+            merchantReference: $this->merchantReference,
+            type: $this->type,
+            lineItems: new RefundLineItemCollection(),
+            externalId: $this->externalId,
+        );
+    }
 }

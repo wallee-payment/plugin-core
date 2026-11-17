@@ -188,33 +188,6 @@ class WebhookManagementGateway implements WebhookManagementGatewayInterface
     }
 
     /**
-     * @inheritDoc
-     */
-    public function getUrl(int $spaceId, int $webhookUrlId): WebhookUrl
-    {
-        $this->logger->debug("Getting Webhook URL.", [
-            'webhookUrlId' => $webhookUrlId,
-            'spaceId' => $spaceId,
-        ]);
-
-        try {
-            $sdkUrl = $this->webhookUrlService->read($spaceId, $webhookUrlId);
-
-            return $this->mapToWebhookUrl($sdkUrl);
-        } catch (\Throwable $e) {
-            $this->logger->error('Failed to read the webhook URL.', ['spaceId' => $spaceId, 'webhookUrlId' => $webhookUrlId, 'exception' => $e]);
-
-            throw SdkProvider::wrapException(
-                $e,
-                WebhookManagementException::class,
-                'getUrl',
-                ['spaceId' => $spaceId, 'webhookUrlId' => $webhookUrlId],
-                'Failed to read the webhook URL.',
-            );
-        }
-    }
-
-    /**
      * Gets listeners filtered by URL ID, returning typed WebhookListener DTOs.
      *
      * @inheritDoc
@@ -329,18 +302,6 @@ class WebhookManagementGateway implements WebhookManagementGatewayInterface
                 'Failed to list the webhook listeners.',
             );
         }
-    }
-
-    /**
-     * Lists webhook URLs and maps each SDK object to a WebhookUrl DTO.
-     * By default, lists URLs in all states to preserve existing behavior.
-     *
-     * @inheritDoc
-     * @return WebhookUrlCollection
-     */
-    public function listUrls(int $spaceId): WebhookUrlCollection
-    {
-        return $this->getWebhookUrls($spaceId, null);
     }
 
     /**

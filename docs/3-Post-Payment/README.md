@@ -19,6 +19,10 @@ By the end of this chapter you can capture or void an authorization, refund all 
 
 - **[Document](Document.md)** — Retrieving the official PDFs the Wallee Portal generates: invoices, packing slips, and credit notes.
 
+### Order Notes
+
+- **[Transaction Comment](TransactionComment.md)** — Reading the comments attached to a transaction in the Wallee Portal, to show them in the shop's order view.
+
 ## Examples
 
 Runnable scripts for this chapter live in [`examples/3-Post-Payment/`](../examples/3-Post-Payment/). They act on an existing transaction, so run the [Chapter 2](../2-Checkout-Flow/README.md) checkout scripts first to create one.

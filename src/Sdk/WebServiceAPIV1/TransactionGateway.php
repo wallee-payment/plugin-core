@@ -29,7 +29,6 @@ use Wallee\PluginCore\Transaction\TransactionGatewayInterface;
 use Wallee\PluginCore\Transaction\TransactionSearchCriteria;
 use Wallee\Sdk\ApiException;
 use Wallee\Sdk\Model\AddressCreate as SdkAddressCreate;
-use Wallee\Sdk\Model\CreationEntityState as SdkCreationEntityState;
 use Wallee\Sdk\Model\CriteriaOperator as SdkCriteriaOperator;
 use Wallee\Sdk\Model\EntityQuery as SdkEntityQuery;
 use Wallee\Sdk\Model\EntityQueryFilter as SdkEntityQueryFilter;
@@ -42,7 +41,6 @@ use Wallee\Sdk\Model\LineItemType as SdkLineItemType;
 use Wallee\Sdk\Model\TaxCreate as SdkTaxCreate;
 use Wallee\Sdk\Model\TransactionCreate as SdkTransactionCreate;
 use Wallee\Sdk\Model\TransactionPending as SdkTransactionPending;
-use Wallee\Sdk\Service\PaymentMethodConfigurationService as SdkPaymentMethodConfigurationService;
 use Wallee\Sdk\Service\TransactionIframeService as SdkTransactionIframeService;
 use Wallee\Sdk\Service\TransactionLightboxService as SdkTransactionLightboxService;
 use Wallee\Sdk\Service\TransactionPaymentPageService as SdkTransactionPaymentPageService;
@@ -56,7 +54,6 @@ class TransactionGateway implements TransactionGatewayInterface
     use PaymentMethodMapperTrait;
     use TransactionMapperTrait;
 
-    private SdkPaymentMethodConfigurationService $paymentMethodConfigService;
     private SdkTransactionService $transactionService;
 
     public function __construct(
@@ -66,7 +63,6 @@ class TransactionGateway implements TransactionGatewayInterface
     ) {
         $this->initializeLogger($logger);
         $this->transactionService = $this->sdkProvider->getService(SdkTransactionService::class);
-        $this->paymentMethodConfigService = $this->sdkProvider->getService(SdkPaymentMethodConfigurationService::class);
     }
 
     /**
@@ -223,6 +219,19 @@ class TransactionGateway implements TransactionGatewayInterface
     {
         try {
             $sdkTransaction = $this->transactionService->read($spaceId, $transactionId);
+
+            // The V1 API returns an empty model instead of a 404 for unknown IDs.
+            if ($sdkTransaction->getId() === null) {
+                $this->logger->debug(
+                    'Gateway: Transaction not found.',
+                    [
+                        'spaceId' => $spaceId,
+                        'transactionId' => $transactionId,
+                    ],
+                );
+                return null;
+            }
+
             return $this->mapToTransaction($sdkTransaction);
         } catch (\Throwable $e) {
             if ($e instanceof ApiException && $e->getCode() === 404) {
@@ -324,48 +333,6 @@ class TransactionGateway implements TransactionGatewayInterface
                 'fetchPaymentMethods',
                 ['spaceId' => $spaceId, 'transactionId' => $transactionId],
                 'Unable to fetch the available payment methods.',
-            );
-        }
-    }
-
-    /**
-     * Gets all active payment method configurations.
-     *
-     * @param int $spaceId The space ID.
-     * @return PaymentMethodCollection The payment method configurations.
-     */
-    public function getPaymentMethodConfigurations(int $spaceId): PaymentMethodCollection
-    {
-        $sdkEntityQuery = new SdkEntityQuery();
-        $sdkEntityQueryFilter = new SdkEntityQueryFilter();
-        $sdkEntityQueryFilter->setType(SdkEntityQueryFilterType::LEAF);
-        $sdkEntityQueryFilter->setOperator(SdkCriteriaOperator::EQUALS);
-        $sdkEntityQueryFilter->setFieldName('state');
-        $sdkEntityQueryFilter->setValue(SdkCreationEntityState::ACTIVE);
-        $sdkEntityQuery->setFilter($sdkEntityQueryFilter);
-
-        try {
-            $results = $this->paymentMethodConfigService->search($spaceId, $sdkEntityQuery);
-            $this->logger->debug("Gateway: Fetched payment method configurations.", [
-                'count' => count($results),
-                'spaceId' => $spaceId,
-            ]);
-
-            return new PaymentMethodCollection(...array_map(
-                [$this, 'mapToPaymentMethod'],
-                $results,
-            ));
-        } catch (\Throwable $e) {
-            $this->logger->error("Gateway: Failed to fetch payment method configurations.", [
-                'exception' => $e,
-                'spaceId' => $spaceId,
-            ]);
-            throw SdkProvider::wrapException(
-                $e,
-                TransactionException::class,
-                'search',
-                ['spaceId' => $spaceId],
-                'Unable to fetch the payment method configurations.',
             );
         }
     }

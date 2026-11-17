@@ -101,12 +101,18 @@ $repository = new DummySqlRepository();
 
 $service = new PaymentMethodService($gateway, $repository, $logger);
 
+// The locales your shop displays, as `de_DE` or `de-DE`. Titles and descriptions
+// already contain every language the API has; the list only adds a DEBUG log entry
+// when one of these locales has no translation. Passing it keeps this code working
+// unchanged on 0.2.x, where the list decides which languages are fetched.
+$shopLocales = ['de_DE', 'fr_FR', 'en_US'];
+
 // ─── Way 1: Direct API Retrieval ───────────────────────────────────────────────
 // Use this when you need fresh data on-the-fly (e.g., during checkout).
 echo "═══ Way 1: Direct API Retrieval ═══\n\n";
 
 try {
-    $paymentMethods = $service->getPaymentMethods($spaceId);
+    $paymentMethods = $service->getPaymentMethods($spaceId, null, $shopLocales);
 
     echo sprintf("Found %d payment methods:\n", count($paymentMethods));
     foreach ($paymentMethods as $paymentMethod) {
@@ -122,7 +128,7 @@ try {
 echo "\n═══ Way 2: Synchronization Loop ═══\n\n";
 
 try {
-    $service->synchronize($spaceId);
+    $service->synchronize($spaceId, $shopLocales);
 } catch (\Exception $e) {
     exit("FAILED: " . $e->getMessage() . "\n");
 }

@@ -7,7 +7,7 @@ After a payment is captured, the Wallee Portal may raise a **delivery indication
 ## Key Components
 
 - **DeliveryIndicationService**: The entry point consumers use — `findByTransaction()`, `get()`, `markAsSuitable()` and `markAsNotSuitable()`.
-- **DeliveryIndicationGatewayInterface**: The infrastructure port the service delegates to. Consumers do not call it directly.
+- **DeliveryIndicationGatewayInterface**: Connects `DeliveryIndicationService` to the API. Pass it in when you create the service, then use the service for every call.
 - **DeliveryIndication**: the indication itself — `id`, `spaceId`, `state`, `transactionId`, `completionId`, plus `isDecisionPending()`.
 - **State**: an enum of the possible states — `PENDING`, `MANUAL_CHECK_REQUIRED`, `SUITABLE`, `NOT_SUITABLE`.
 

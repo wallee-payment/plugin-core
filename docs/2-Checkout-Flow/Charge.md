@@ -22,7 +22,7 @@ The explicit case is a flow **without a customer-facing widget** — a shop admi
 2. **Apply the charge flow**, which is what actually collects the money:
 
 ```php
-$transaction = $gateway->confirm($spaceId, $transactionId);
+$transaction = $transactionService->confirmTransaction($spaceId, $transactionId);
 $charged = $charge->applyFlow($spaceId, $transactionId);
 ```
 
@@ -42,7 +42,7 @@ Applying a charge flow doesn't always succeed on the first try. A single flow ca
   - `applyFlow(int $spaceId, int $transactionId): Transaction` — charges the transaction by applying its configured charge flow.
   - `findAllAttemptsByTransaction(int $spaceId, int $transactionId): array` — every attempt of the transaction, as `list<ChargeAttempt>`.
   - `findSuccessfulAttemptByTransaction(int $spaceId, int $transactionId): ?ChargeAttempt` — the successful attempt, or `null` when there is none.
-- **ChargeGatewayInterface**: The API-facing operations — `applyFlow()` and `findAllAttemptsByTransaction()` — implemented once per API version.
+- **ChargeGatewayInterface**: Connects `ChargeService` to the API. Pass it in when you create the service, then use the service for every call.
 - **Attempt\ChargeAttempt**: The attempt itself — `id`, `state`, and its `labels`. Provides `isSuccessful(): bool`, plus `getLabel(int $descriptorId): ?Label` and `getLabelsByGroup(string $groupId): array` so you can pick labels out without walking the array yourself.
 - **Attempt\Label**: One reported detail — `descriptorId`, `content`, and the descriptor group it belongs to (`groupId`, plus `groupName` for display where the API provides it).
 
@@ -59,8 +59,6 @@ $transaction = $charge->applyFlow($spaceId, $transactionId);
 
 > [!IMPORTANT]
 > The charge flow runs **asynchronously**. The returned `Transaction` is the state at the moment the flow was applied — typically still `PROCESSING` — not the final outcome of the charge. To learn how the charge ended, read the transaction again later or handle the corresponding [webhook](../4-Background-Tasks/README.md).
-
-The two API versions disagree about where this operation lives and what order its arguments come in. That difference stops at the gateway: the contract above is identical on both.
 
 ## Reading Charge Attempts
 
@@ -84,7 +82,7 @@ $brandLabels = $chargeAttempt?->getLabelsByGroup('4') ?? [];   // every label in
 
 👉 **See this in action:** [7_fetch_charge_attempt_labels.php](../examples/2-Checkout-Flow/7_fetch_charge_attempt_labels.php)
 
-`findSuccessfulAttemptByTransaction()` is a filter over `findAllAttemptsByTransaction()`: it reads every attempt and returns the first one `ChargeAttempt::isSuccessful()` accepts. Use `isSuccessful()` rather than comparing `$attempt->state` yourself — it is where the rule lives, and it reads the same on both API versions.
+`findSuccessfulAttemptByTransaction()` is a filter over `findAllAttemptsByTransaction()`: it reads every attempt and returns the first one `ChargeAttempt::isSuccessful()` accepts. Use `isSuccessful()` rather than comparing `$attempt->state` yourself — it is where the rule lives.
 
 `null` is a normal outcome, not an error: a transaction that is still pending, was voided, or whose charge failed simply has no successful attempt. An empty list from `findAllAttemptsByTransaction()` likewise just means the transaction has never been charged.
 

@@ -17,7 +17,7 @@ One service and one gateway interface cover all five entity types:
   - `getLabelDescriptors(): LabelDescriptorCollection`
   - `getLabelDescriptorGroups(): LabelDescriptorGroupCollection`
   - Plus caching controls for the last two — see [Caching label descriptors and their groups](#caching-label-descriptors-and-their-groups) below.
-- **`GlobalDataGatewayInterface`** — the same five methods, implemented once per API version.
+- **`GlobalDataGatewayInterface`** — connects `GlobalDataService` to the API. Pass it in when you create the service, then use the service for every call.
 
 The entities live in a sub-namespace each, under `GlobalData\<SubDomain>`:
 
@@ -43,7 +43,7 @@ use Wallee\PluginCore\Sdk\WebServiceAPIV1\GlobalDataGateway;
 $globalData = new GlobalDataService(new GlobalDataGateway($sdkProvider, $logger), $logger);
 ```
 
-Every lookup returns typed `readonly` entities, gives identical results on both API versions, handles pagination for you, and reports failures as a single domain exception.
+Every lookup returns typed `readonly` entities, handles pagination for you, and reports failures as a single domain exception.
 
 ## Usage
 
@@ -112,7 +112,7 @@ Compare amounts through `areAmountsEqual()` rather than `==`, so a difference be
 
 ### Pagination is not your problem
 
-The two API versions differ in how they expose these lists: some endpoints return everything in one response, others only offer paginated search. The gateways absorb that difference — every method here returns the **complete** collection regardless of API version, paging internally where the API requires it.
+Every method here returns the **complete** collection; you never page through results yourself.
 
 ## No Space ID required
 

@@ -70,7 +70,8 @@ try {
 echo "\n--- STEP 2: Listing Webhooks ---\n";
 $myListener = null;
 try {
-    $urls = $webhookService->listUrls((int)$spaceId);
+    // Passing null as the state lists the URLs in every state, not only active ones.
+    $urls = $webhookService->getWebhookUrls((int)$spaceId, null);
     echo "Found " . count($urls) . " Webhook URL(s).\n";
     echo "URL: ID={$myUrl->id}, Name={$myUrl->name}, URL={$myUrl->url}\n";
 

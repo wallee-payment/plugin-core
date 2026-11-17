@@ -11,7 +11,7 @@ require_once __DIR__ . '/src/MyExampleSettingsProvider.php';
 require_once __DIR__ . '/src/MyExampleLifecycleHandler.php';
 require_once __DIR__ . '/src/MyPluginLogger.php';
 require_once __DIR__ . '/src/MyExampleStateMapper.php';
-require_once __DIR__ . '/src/ExampleStateFetcher.php';
+require_once __DIR__ . '/src/AcceptAllSignatureGateway.php';
 // Transaction
 require_once __DIR__ . '/src/Transaction/GenericCommand.php';
 require_once __DIR__ . '/src/Transaction/AuthorizedCommand.php';
@@ -22,6 +22,7 @@ require_once __DIR__ . '/src/Refund/SuccessfulCommand.php';
 require_once __DIR__ . '/src/Refund/RefundListener.php';
 
 use Wallee\PluginCore\Http\Request;
+use Wallee\PluginCore\Webhook\DefaultStateFetcher;
 use Wallee\PluginCore\Webhook\Enum\WebhookListener;
 use Wallee\PluginCore\Webhook\Listener\WebhookListenerRegistry;
 use Wallee\PluginCore\Webhook\StateValidator;
@@ -50,7 +51,9 @@ $sdkProvider = new SdkProvider($settings);
 $mapper = new MyExampleStateMapper();
 $lifecycleHandler = new MyExampleLifecycleHandler($mapper);
 $logger = new MyPluginLogger($logLevel);
-$stateFetcher = new ExampleStateFetcher();
+// The real fetcher, with signature checks stubbed out so mock payloads pass.
+// In a plugin, pass new WebhookSignatureGateway($sdkProvider, $logger) instead.
+$stateFetcher = new DefaultStateFetcher($sdkProvider, $settings, new AcceptAllSignatureGateway());
 $registry = new WebhookListenerRegistry();
 $validator = new StateValidator();
 
@@ -114,6 +117,8 @@ function create_mock_request(string $technicalName, string $state, int $entityId
         'entityId' => $entityId,
         'spaceId' => 12345,
     ];
+    // Any x-signature value makes DefaultStateFetcher read the state from the payload
+    // (AcceptAllSignatureGateway accepts it); without it, the state is read from the API.
     // Use the public factory instead of reflection to build a Request from raw data.
-    return Request::create([], $mockBody, json_encode($mockBody));
+    return Request::create(['x-signature' => 'example-signature'], $mockBody, json_encode($mockBody));
 }

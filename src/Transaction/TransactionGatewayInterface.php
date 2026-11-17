@@ -55,14 +55,6 @@ interface TransactionGatewayInterface
     public function getAvailablePaymentMethods(int $spaceId, int $transactionId): PaymentMethodCollection;
 
     /**
-     * Gets all active payment method configurations.
-     *
-     * @param int $spaceId The space ID.
-     * @return PaymentMethodCollection The payment method configurations.
-     */
-    public function getPaymentMethodConfigurations(int $spaceId): PaymentMethodCollection;
-
-    /**
      * Gets the payment URL for a transaction.
      *
      * @param int $spaceId The space ID.

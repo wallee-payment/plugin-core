@@ -230,17 +230,6 @@ class WebhookService
     }
 
     /**
-     * Lists all webhook URL definitions in the space.
-     *
-     * @param int $spaceId
-     * @return WebhookUrlCollection
-     */
-    public function listUrls(int $spaceId): WebhookUrlCollection
-    {
-        return $this->getWebhookUrls($spaceId, null);
-    }
-
-    /**
      * Synchronizes webhook listeners in the given space against the entities configured in the registry.
      *
      * Resolves (or creates) the webhook URL, then iterates over the registry to ensure that a listener

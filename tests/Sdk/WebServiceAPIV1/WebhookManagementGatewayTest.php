@@ -161,35 +161,6 @@ class WebhookManagementGatewayTest extends TestCase
     }
 
     /**
-     * Tests that getUrl reads a single webhook URL from SDK v1
-     * and returns a typed WebhookUrl DTO.
-     */
-    public function testGetUrl(): void
-    {
-        $spaceId = 1;
-        $webhookUrlId = 100;
-
-        $sdkUrl = new SdkWebhookUrl();
-        $sdkUrl->setId($webhookUrlId);
-        $sdkUrl->setName('Test URL');
-        $sdkUrl->setUrl('http://test.com');
-        $sdkUrl->setState(CreationEntityState::ACTIVE);
-
-        $this->urlService->expects($this->once())
-            ->method('read')
-            ->with($spaceId, $webhookUrlId)
-            ->willReturn($sdkUrl);
-
-        $result = $this->gateway->getUrl($spaceId, $webhookUrlId);
-
-        // Assert the returned object is a domain DTO, not an SDK object
-        $this->assertInstanceOf(WebhookUrl::class, $result);
-        $this->assertEquals($webhookUrlId, $result->id);
-        $this->assertEquals('Test URL', $result->name);
-        $this->assertEquals('http://test.com', $result->url);
-    }
-
-    /**
      * Tests that getWebhookListeners returns typed WebhookListener DTOs
      * instead of raw SDK objects.
      */
@@ -243,29 +214,6 @@ class WebhookManagementGatewayTest extends TestCase
             ->willReturn([$sdkUrl]);
 
         $results = $this->gateway->getWebhookUrls($spaceId, $state, );
-
-        $this->assertCount(1, $results, );
-        $this->assertInstanceOf(WebhookUrl::class, $results->first(), );
-        $this->assertEquals(100, $results->first()->id, );
-    }
-
-    /**
-     * Tests that listUrls does not apply a state filter.
-     */
-    public function testListUrls(): void
-    {
-        $spaceId = 1;
-        $sdkUrl = new SdkWebhookUrl();
-        $sdkUrl->setId(100);
-
-        $this->urlService->expects($this->once())
-            ->method('search')
-            ->with($this->equalTo($spaceId), $this->callback(function ($query) {
-                return $query->getFilter() === null;
-            }))
-            ->willReturn([$sdkUrl]);
-
-        $results = $this->gateway->listUrls($spaceId, );
 
         $this->assertCount(1, $results, );
         $this->assertInstanceOf(WebhookUrl::class, $results->first(), );

@@ -96,7 +96,7 @@ function list_refunds(RefundService $service, int $spaceId, int $transactionId)
         }
         foreach ($refunds as $refund) {
             echo " > Refund ID: {$refund->id}, Amount: {$refund->amount}, State: {$refund->state->value}\n";
-            // Failed refunds now carry the gateway's localized failure reason.
+            // Failed refunds carry the localized failure reason reported by the Wallee Portal.
             if ($refund->failureReason !== null) {
                 echo "   Failure Reason: " . $refund->failureReason->localize('en-US') . "\n";
             }

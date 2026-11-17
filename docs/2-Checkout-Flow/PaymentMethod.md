@@ -23,9 +23,23 @@ foreach ($paymentMethodService->getPaymentMethods($spaceId) as $method) {
 }
 ```
 
+## Titles and Descriptions in Your Shop's Languages
+
+`$method->title` and `$method->description` carry every language the API has for the method, so `localize()` resolves any shop locale:
+
+```php
+$methods = $paymentMethodService->getPaymentMethods($spaceId, null, ['de_DE', 'fr_FR', 'en_US']);
+
+foreach ($methods as $method) {
+    echo $method->title->localize('de_DE'); // "Kredit-/Debitkarte"
+}
+```
+
+Passing the locales your shop displays is optional here, and it doesn't change what is returned. When one of them has no translation, `localize()` falls back to the text it has, and a `DEBUG` entry lists the locale and the affected payment method IDs. `getPaymentMethod()` and `synchronize()` take the same list as their last argument. On 0.2.x the same list decides which translations are fetched, so passing it keeps your code working unchanged on both lines.
+
 ## Synchronizing Payment Methods
 
-Use `getPaymentMethods()` when you need the space's configured methods on demand (e.g. an admin settings screen). Use `synchronize(int $spaceId): void` instead when you want to keep a local mirror of them — for example, in a cron job or an admin-triggered sync — so the rest of your plugin can query its own database instead of calling the API on every request.
+Use `getPaymentMethods()` when you need the space's configured methods on demand (e.g. an admin settings screen). Use `synchronize(int $spaceId, array $locales = []): void` instead when you want to keep a local mirror of them — for example, in a cron job or an admin-triggered sync — so the rest of your plugin can query its own database instead of calling the API on every request.
 
 Neither method is eligibility-aware; for what to actually offer a customer during checkout, see [`TransactionService::getAvailablePaymentMethods()`](Checkout.md#available-payment-methods).
 
@@ -38,7 +52,7 @@ Neither method is eligibility-aware; for what to actually offer a customer durin
 
 ```php
 $paymentMethodService = new PaymentMethodService($gateway, $repository, $logger);
-$paymentMethodService->synchronize($spaceId);
+$paymentMethodService->synchronize($spaceId, ['de_DE', 'fr_FR', 'en_US']);
 ```
 
 When it finishes, it logs a summary at `INFO` level — `created`, `updated`, `skipped`, and `deactivated` counts — so you can confirm a sync run without stepping through your repository's persistence code.
@@ -67,5 +81,5 @@ Returns an empty string if `imageUrl` is `null`, and falls back to the full URL 
 
 ## Examples
 
-- [retrieval.php](../examples/2-Checkout-Flow/1_list_payment_methods.php): Fetches and displays the available payment methods.
-- [2_synchronize_payment_methods.php](../examples/2-Checkout-Flow/2_synchronize_payment_methods.php): Retrieves methods and synchronizes them into a sample repository (see [Synchronizing Payment Methods](#synchronizing-payment-methods) above).
+- [1_list_payment_methods.php](../examples/2-Checkout-Flow/1_list_payment_methods.php): Fetches the available payment methods for a list of shop locales and prints each title and description per locale (see [Titles and Descriptions in Your Shop's Languages](#titles-and-descriptions-in-your-shops-languages)).
+- [2_synchronize_payment_methods.php](../examples/2-Checkout-Flow/2_synchronize_payment_methods.php): Retrieves methods and synchronizes them, with the shop's locales, into a sample repository (see [Synchronizing Payment Methods](#synchronizing-payment-methods) above).

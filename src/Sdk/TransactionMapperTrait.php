@@ -9,7 +9,6 @@ use Wallee\PluginCore\Customer\CompanyDetails;
 use Wallee\PluginCore\Customer\Gender;
 use Wallee\PluginCore\Customer\PersonalDetails;
 use Wallee\PluginCore\Localization\LocalizedString;
-use Wallee\PluginCore\Token\Token;
 use Wallee\PluginCore\Transaction\State as StateEnum;
 use Wallee\PluginCore\Transaction\Transaction;
 use Wallee\PluginCore\Transaction\TransactionEnvironment;

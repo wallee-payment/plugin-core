@@ -12,8 +12,8 @@ The original transaction **must** be created with `tokenizationMode = FORCE_CREA
 **2. Process Without User Interaction**
 The recurring payment process triggers a charge attempt on a previously successful transaction. It uses the payment information linked to that transaction.
 
-**3. The Recurring Gateway**
-The logic is encapsulated in the `RecurringTransactionGatewayInterface`. This interface exposes a specific method for processing recurring charges: `processRecurringPayment`.
+**3. The Recurring Service**
+`RecurringTransactionService::processRecurringPayment()` runs the whole recurring charge in one call: you pass the space ID and the original transaction ID, and get the new transaction back (see Step 2 below).
 
 **4. Token and Billing Address Requirements**
 For a recurring payment to succeed, a valid payment token and billing address must be present on the original transaction. Following the Fail Fast approach, the service throws a domain exception with both a technical message and a localized reason: a `MissingTokenException` (in `Wallee\PluginCore\Token\Exception`) when the token is missing, and a `TransactionException` (in `Wallee\PluginCore\Transaction\Exception`) when the billing address is missing.

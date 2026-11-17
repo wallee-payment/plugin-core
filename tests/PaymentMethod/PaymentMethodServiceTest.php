@@ -114,6 +114,34 @@ class PaymentMethodServiceTest extends TestCase
     }
 
     /**
+     * Verifies that the locales reach the gateway from every entry point.
+     */
+    public function testLocalesAreForwardedToTheGateway(): void
+    {
+        $spaceId = 123;
+        $locales = ['de_DE', 'fr_FR'];
+        $method = $this->createPaymentMethod(id: 1, spaceId: $spaceId, name: 'Credit Card');
+
+        $gateway = $this->createMock(PaymentMethodGatewayInterface::class);
+        $gateway->expects($this->exactly(2))
+            ->method('fetchBySpaceId')
+            ->with($spaceId, null, $locales)
+            ->willReturn(new PaymentMethodCollection($method));
+        $gateway->expects($this->once())
+            ->method('fetchById')
+            ->with($spaceId, 1, $locales)
+            ->willReturn($method);
+
+        $repository = $this->createMock(PaymentMethodRepositoryInterface::class);
+        $repository->method('getExistingExternalIds')->willReturn([]);
+
+        $service = new PaymentMethodService($gateway, $repository, $this->createMock(LoggerInterface::class));
+        $service->getPaymentMethods($spaceId, null, $locales);
+        $service->getPaymentMethod($spaceId, 1, $locales);
+        $service->synchronize($spaceId, $locales);
+    }
+
+    /**
      * When all API methods are new (no local IDs exist), only create() should be called.
      * update() and deactivateByExternalId() must never be invoked.
      */

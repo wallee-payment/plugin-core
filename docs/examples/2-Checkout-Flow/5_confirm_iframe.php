@@ -49,7 +49,7 @@ try {
 
     // Generate the simulation HTML.
     // We pick the first available payment method and generate the payment URL.
-    $paymentMethods = $gateway->getAvailablePaymentMethods((int)$spaceId, $transactionId,);
+    $paymentMethods = $service->getAvailablePaymentMethods((int)$spaceId, $transactionId,);
     if ($paymentMethods->isEmpty()) {
         exit("\n[ERROR] No payment methods available for this transaction.\n");
     }

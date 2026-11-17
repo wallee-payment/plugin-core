@@ -102,9 +102,19 @@ Before calling the API, PluginCore validates the request locally. Amounts are co
 
 - `RefundContext::$amount` may equal the remaining refundable amount (authorized minus already refunded). Anything above it is rejected.
 - A line item's reduction may not exceed that item's original amount.
-- `RefundContext::$amount` must equal the sum of the line item reductions.
+- `RefundContext::$amount` must match the sum of the line item reductions, apart from a rounding remainder (see below).
 
 Each violation throws an `InvalidRefundException`. If the transaction reports no currency, 2 decimals are assumed.
+
+### When Line Items Don't Add Up to the Amount
+
+Line item reductions are priced per unit, so some amounts cannot be expressed exactly — for example refunding 1.00 across 3 units of a 1.00 item at `returnedQuantity: 0` would need a reduction of 0.3333… per unit, and the nearest whole-cent reduction (0.33) sums to 0.99.
+
+If the line items you pass fall short of, or exceed, `RefundContext::$amount` by no more than **one smallest currency unit per remaining unit** (0.01 per unit for EUR, so up to 0.03 over 3 units), PluginCore treats the gap as a rounding remainder. It automatically drops the line items and performs an **amount-only refund** for `RefundContext::$amount`, so the refund still succeeds. A warning is logged when this happens.
+
+A larger gap is not a rounding remainder: the request is rejected with an `InvalidRefundException`, like any other mismatch between the line items and the amount. The checks on the remaining balance and on each line apply first, in both cases.
+
+Keep in mind that an amount-only refund carries no line item breakdown: the refund is recorded against the transaction as a whole, and any `returnedQuantity` you passed is not reported to the API. Track stock changes on your side regardless of how the refund was sent. Because the refund then covers a fractional share of the line, the remaining refundable quantity reported afterwards can be fractional too (for example `2.5` units).
 
 ## Errors
 

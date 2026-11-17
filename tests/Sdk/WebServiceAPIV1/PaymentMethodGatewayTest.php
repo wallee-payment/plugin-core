@@ -23,6 +23,34 @@ class PaymentMethodGatewayTest extends TestCase
     private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkPaymentMethodConfigurationService $service;
 
+    /**
+     * @param list<array<string, mixed>> $logged Filled with the context of each missing-locale entry.
+     */
+    private function captureMissingLocaleLogs(array &$logged): void
+    {
+        $this->logger->method('debug')
+            ->willReturnCallback(static function (string $message, array $context) use (&$logged): void {
+                if (str_contains($message, 'missing for a requested locale')) {
+                    $logged[] = $context;
+                }
+            });
+    }
+
+    /**
+     * @param array<string, string> $title
+     */
+    private function config(int $id, array $title): SdkPaymentMethodConfiguration
+    {
+        $config = new SdkPaymentMethodConfiguration();
+        $config->setId($id);
+        $config->setLinkedSpaceId(1);
+        $config->setState(CreationEntityState::ACTIVE);
+        $config->setResolvedTitle($title);
+        $config->setSortOrder(1);
+
+        return $config;
+    }
+
     protected function setUp(): void
     {
         $this->sdkProvider = $this->createMock(SdkProvider::class);
@@ -34,6 +62,19 @@ class PaymentMethodGatewayTest extends TestCase
             ->willReturn($this->service);
 
         $this->gateway = new PaymentMethodGateway($this->sdkProvider, $this->logger);
+    }
+
+    public function testFetchByIdLogsARequestedLocaleMissingFromTheResponse(): void
+    {
+        $this->service->method('read')->with(1, 11)->willReturn($this->config(11, ['en-US' => 'Card']));
+        $logged = [];
+        $this->captureMissingLocaleLogs($logged);
+
+        $method = $this->gateway->fetchById(1, 11, ['it-IT']);
+
+        $this->assertSame('Card', $method->title->localize('it-IT'));
+        $this->assertCount(1, $logged);
+        $this->assertSame('it-IT', $logged[0]['locale']);
     }
 
     public function testFetchByIdReturnsPaymentMethod(): void
@@ -82,6 +123,23 @@ class PaymentMethodGatewayTest extends TestCase
         $this->gateway->fetchById(1, 10);
     }
 
+    public function testFetchBySpaceIdLogsARequestedLocaleMissingFromTheResponse(): void
+    {
+        $this->service->method('search')->willReturn([
+            $this->config(11, ['de-DE' => 'Karte', 'en-US' => 'Card']),
+            $this->config(12, ['de-DE' => 'Rechnung', 'en-US' => 'Invoice', 'sv-SE' => 'Faktura']),
+        ]);
+        $logged = [];
+        $this->captureMissingLocaleLogs($logged);
+
+        $this->gateway->fetchBySpaceId(1, null, ['de_DE', 'sv_SE', 'sv-SE']);
+
+        $this->assertCount(1, $logged);
+        $this->assertSame('sv-SE', $logged[0]['locale']);
+        $this->assertSame(['de-DE', 'en-US', 'sv-SE'], $logged[0]['returnedLocales']);
+        $this->assertSame([11], $logged[0]['paymentMethodIds']);
+    }
+
     public function testFetchBySpaceIdReturnsArrayOfPaymentMethods(): void
     {
         $spaceId = 1;
@@ -103,5 +161,32 @@ class PaymentMethodGatewayTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertInstanceOf(PaymentMethod::class, $results->all()[0]);
         $this->assertEquals(11, $results->all()[0]->id);
+    }
+
+    public function testFetchBySpaceIdReturnsEveryLocaleWhicheverLocalesArePassed(): void
+    {
+        $title = ['de-DE' => 'Kredit-/Debitkarte', 'en-US' => 'Credit / Debit Card', 'fr-FR' => 'Carte de crédit / débit'];
+        $this->service->expects($this->once())
+            ->method('search')
+            ->willReturn([$this->config(11, $title)]);
+        $logged = [];
+        $this->captureMissingLocaleLogs($logged);
+
+        $results = $this->gateway->fetchBySpaceId(1, null, ['de_DE', 'de-CH']);
+
+        $this->assertSame($title, $results->first()->title->jsonSerialize());
+        $this->assertSame('Kredit-/Debitkarte', $results->first()->title->localize('de_CH'));
+        $this->assertCount(0, $logged);
+    }
+
+    public function testNoLocalesLogsNothing(): void
+    {
+        $this->service->method('search')->willReturn([$this->config(11, ['en-US' => 'Card'])]);
+        $logged = [];
+        $this->captureMissingLocaleLogs($logged);
+
+        $this->gateway->fetchBySpaceId(1);
+
+        $this->assertCount(0, $logged);
     }
 }

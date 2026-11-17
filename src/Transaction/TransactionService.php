@@ -153,6 +153,27 @@ class TransactionService
     }
 
     /**
+     * Looks up a transaction that may not exist.
+     *
+     * Use this instead of getTransaction() when a missing transaction is an expected
+     * outcome (an ID taken from a session, a URL or a stale order) rather than an error.
+     *
+     * @param int $spaceId The space ID.
+     * @param int $transactionId The transaction ID.
+     * @return Transaction|null The transaction, or null when it does not exist.
+     * @throws TransactionException If the transaction cannot be read for any other reason.
+     */
+    public function findTransaction(int $spaceId, int $transactionId): ?Transaction
+    {
+        $transaction = $this->gateway->find($spaceId, $transactionId);
+        $this->logger->debug(
+            $transaction === null ? "Service: Transaction not found." : "Service: Transaction found.",
+            ['spaceId' => $spaceId, 'transactionId' => $transactionId],
+        );
+        return $transaction;
+    }
+
+    /**
      * Gets available payment methods for a transaction.
      *
      * @param int $spaceId The space ID.
@@ -221,22 +242,6 @@ class TransactionService
             ]);
         }
         return $defaultMessage;
-    }
-
-    /**
-     * Gets the latest transactions.
-     *
-     * @param int $spaceId The space ID.
-     * @param int $limit The number of transactions to retrieve (default: 10).
-     * @return TransactionCollection The latest transactions.
-     */
-    public function getLatestTransactions(int $spaceId, int $limit = 10): TransactionCollection
-    {
-        $criteria = new TransactionSearchCriteria();
-        $criteria->limit = $limit;
-        $criteria->sortField = 'id';
-        $criteria->sortOrder = 'DESC';
-        return $this->searchTransactions($spaceId, $criteria);
     }
 
     /**

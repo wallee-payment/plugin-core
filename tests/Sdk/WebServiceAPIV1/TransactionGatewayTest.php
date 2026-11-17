@@ -31,7 +31,6 @@ use Wallee\Sdk\Model\PaymentMethodConfiguration as SdkConfiguration;
 use Wallee\Sdk\Model\Transaction as SdkTransaction;
 use Wallee\Sdk\Model\TransactionCreate as SdkTransactionCreate;
 use Wallee\Sdk\Model\TransactionState as SdkTransactionState;
-use Wallee\Sdk\Service\PaymentMethodConfigurationService as SdkPaymentMethodConfigurationService;
 use Wallee\Sdk\Service\TransactionIframeService as SdkTransactionIframeService;
 use Wallee\Sdk\Service\TransactionLightboxService as SdkTransactionLightboxService;
 use Wallee\Sdk\Service\TransactionPaymentPageService as SdkTransactionPaymentPageService;
@@ -42,7 +41,6 @@ class TransactionGatewayTest extends TestCase
 {
     private TransactionGateway $gateway;
     private MockObject|LoggerInterface $logger;
-    private MockObject|SdkPaymentMethodConfigurationService $sdkPaymentConfigService;
     private MockObject|SdkProvider $sdkProvider;
     private MockObject|SdkTransactionService $sdkTransactionService;
     private MockObject|Settings $settings;
@@ -89,13 +87,11 @@ class TransactionGatewayTest extends TestCase
     protected function setUp(): void
     {
         $this->sdkTransactionService = $this->createMock(SdkTransactionService::class);
-        $this->sdkPaymentConfigService = $this->createMock(SdkPaymentMethodConfigurationService::class);
 
         $this->sdkProvider = $this->createMock(SdkProvider::class);
         $this->sdkProvider->method('getService')
             ->willReturnMap([
                 [SdkTransactionService::class, $this->sdkTransactionService],
-                [SdkPaymentMethodConfigurationService::class, $this->sdkPaymentConfigService],
             ]);
 
         $this->logger = $this->createMock(LoggerInterface::class);
@@ -373,29 +369,6 @@ class TransactionGatewayTest extends TestCase
         $this->assertEquals(55, $results->first()->id, );
     }
 
-    public function testFetchPaymentMethodConfigurationsMapsCorrectly(): void
-    {
-        $spaceId = 123;
-
-        $sdkItem1 = new SdkConfiguration();
-        $sdkItem1->setId(10);
-        $sdkItem1->setLinkedSpaceId($spaceId);
-        $sdkItem1->setState(\Wallee\Sdk\Model\CreationEntityState::ACTIVE);
-        $sdkItem1->setResolvedTitle(['en-US' => 'Credit Card']);
-        $sdkItem1->setResolvedDescription(['en-US' => 'Pay later']);
-        $sdkItem1->setSortOrder(1);
-        $sdkItem1->setResolvedImageUrl('http://img.com/card.png');
-
-        $this->sdkPaymentConfigService->expects($this->once())
-            ->method('search')
-            ->willReturn([$sdkItem1]);
-
-        $results = $this->gateway->getPaymentMethodConfigurations($spaceId, );
-
-        $this->assertCount(1, $results, );
-        $this->assertEquals(10, $results->first()->id, );
-    }
-
     #[DataProvider('integrationModeProvider')]
     public function testFetchPaymentUrlDelegatesToCorrectService(
         IntegrationMode $mode,
@@ -422,7 +395,6 @@ class TransactionGatewayTest extends TestCase
         $cleanSdkProvider->method('getService')
             ->willReturnMap([
                 [SdkTransactionService::class, $this->sdkTransactionService],
-                [SdkPaymentMethodConfigurationService::class, $this->sdkPaymentConfigService],
                 [$serviceClass, $specificServiceMock],
             ]);
 
@@ -652,6 +624,25 @@ class TransactionGatewayTest extends TestCase
 
         $result = $this->gateway->find($spaceId, $transactionId);
         $this->assertNull($result);
+    }
+
+    public function testFindReturnsNullWhenApiAnswersWithEmptyModel(): void
+    {
+        $spaceId = 123;
+        $transactionId = 456;
+
+        // The V1 API answers unknown IDs with an empty model rather than a 404.
+        $this->sdkTransactionService->expects($this->once())
+            ->method('read')
+            ->with($spaceId, $transactionId)
+            ->willReturn(new SdkTransaction());
+
+        $this->logger->expects($this->once())
+            ->method('debug')
+            ->with($this->stringContains('Transaction not found'));
+        $this->logger->expects($this->never())->method('error');
+
+        $this->assertNull($this->gateway->find($spaceId, $transactionId));
     }
 
     public function testFindWrapsApiExceptionOn500(): void

@@ -28,6 +28,19 @@ Resolving that state is the job of `StateFetcherInterface`. The bundled `Default
 
 Either way the processor ends up with a state it can rely on. It then compares that against the last state your shop recorded for that entity and works out which steps are missing — which is what makes the delivery problems above disappear: an out-of-order or duplicated notification is just another prompt to re-check the truth, and a forged payload cannot get past either route.
 
+`DefaultStateFetcher` checks signatures through the `WebhookSignatureGateway` you pass in when you create it:
+
+```php
+use Wallee\PluginCore\Sdk\WebServiceAPIV1\WebhookSignatureGateway;
+use Wallee\PluginCore\Webhook\DefaultStateFetcher;
+
+$stateFetcher = new DefaultStateFetcher(
+    $sdkProvider,
+    $settings,
+    new WebhookSignatureGateway($sdkProvider, $logger),
+);
+```
+
 A plugin can replace `StateFetcherInterface` entirely if its platform resolves state some other way.
 
 ## What Happens When a Webhook Arrives
